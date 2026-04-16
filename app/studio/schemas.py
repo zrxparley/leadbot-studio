@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -217,3 +218,39 @@ class StudioManifest(BaseModel):
 
         return self
 
+
+class WorkflowRunRequest(BaseModel):
+    operator: str | None = None
+    input_summary: str = "Operator-triggered workflow dry run."
+    requested_outputs: list[str] = Field(default_factory=list)
+    metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class WorkflowRunStepPreview(BaseModel):
+    step_id: str
+    name: str
+    owner_agent_id: str
+    owner_display_name: str
+    status: Literal["queued", "blocked"]
+    depends_on: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    deliverables: list[str] = Field(default_factory=list)
+    approval_required: bool = False
+    handoff_to: list[str] = Field(default_factory=list)
+
+
+class WorkflowRunPreview(BaseModel):
+    run_id: str
+    mode: Literal["dry_run"] = "dry_run"
+    workflow_id: str
+    workflow_name: str
+    lead_agent_id: str
+    operator: str | None = None
+    input_summary: str
+    requested_outputs: list[str] = Field(default_factory=list)
+    created_at: datetime
+    next_steps: list[str] = Field(default_factory=list)
+    blocked_steps: list[str] = Field(default_factory=list)
+    approval_steps: list[str] = Field(default_factory=list)
+    step_previews: list[WorkflowRunStepPreview] = Field(default_factory=list)
+    metadata: dict[str, str] = Field(default_factory=dict)

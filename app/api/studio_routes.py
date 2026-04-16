@@ -1,7 +1,13 @@
 from fastapi import APIRouter, HTTPException
 
-from app.studio.schemas import StudioManifest
-from app.studio.service import StudioManifestService, WorkflowNotFoundError
+from app.studio.schemas import AgentBot, StudioManifest, WorkflowDefinition, WorkflowRunRequest
+from app.studio.service import (
+    AgentNotFoundError,
+    EntityConflictError,
+    EntityInUseError,
+    StudioManifestService,
+    WorkflowNotFoundError,
+)
 
 router = APIRouter(prefix="/studio", tags=["leadbot-studio"])
 studio_service = StudioManifestService()
@@ -28,15 +34,93 @@ def list_agents() -> list[dict]:
     return [agent.model_dump(mode="json") for agent in studio_service.list_agents()]
 
 
+@router.get("/agents/{agent_id}")
+def get_agent(agent_id: str) -> dict:
+    try:
+        return studio_service.get_agent(agent_id).model_dump(mode="json")
+    except AgentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {exc}") from exc
+
+
+@router.post("/agents")
+def create_agent(agent: AgentBot) -> dict:
+    try:
+        return studio_service.create_agent(agent).model_dump(mode="json")
+    except EntityConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.put("/agents/{agent_id}")
+def update_agent(agent_id: str, agent: AgentBot) -> dict:
+    try:
+        return studio_service.update_agent(agent_id, agent).model_dump(mode="json")
+    except AgentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {exc}") from exc
+    except EntityConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/agents/{agent_id}")
+def delete_agent(agent_id: str) -> dict:
+    try:
+        return studio_service.delete_agent(agent_id)
+    except AgentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {exc}") from exc
+    except EntityInUseError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.get("/workflows")
 def list_workflows() -> list[dict]:
     return [workflow.model_dump(mode="json") for workflow in studio_service.list_workflows()]
+
+
+@router.get("/workflows/{workflow_id}")
+def get_workflow(workflow_id: str) -> dict:
+    try:
+        return studio_service.get_workflow(workflow_id).model_dump(mode="json")
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
+
+
+@router.post("/workflows")
+def create_workflow(workflow: WorkflowDefinition) -> dict:
+    try:
+        return studio_service.create_workflow(workflow).model_dump(mode="json")
+    except EntityConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.put("/workflows/{workflow_id}")
+def update_workflow(workflow_id: str, workflow: WorkflowDefinition) -> dict:
+    try:
+        return studio_service.update_workflow(workflow_id, workflow).model_dump(mode="json")
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
+    except EntityConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.delete("/workflows/{workflow_id}")
+def delete_workflow(workflow_id: str) -> dict:
+    try:
+        return studio_service.delete_workflow(workflow_id)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
 
 
 @router.get("/workflows/{workflow_id}/plan")
 def get_workflow_plan(workflow_id: str) -> dict:
     try:
         return studio_service.get_workflow_plan(workflow_id)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
+
+
+@router.post("/workflows/{workflow_id}/dry-run")
+def create_workflow_dry_run(workflow_id: str, request: WorkflowRunRequest) -> dict:
+    try:
+        return studio_service.create_workflow_dry_run(workflow_id, request).model_dump(mode="json")
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
 

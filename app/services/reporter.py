@@ -38,7 +38,7 @@ class ReportBuilder:
 
         prompt = "\n".join(
             [
-                f"# 全球丝网市场动态日报",
+                "# 全球丝网市场动态日报",
                 f"统计区间：{period_start:%Y-%m-%d %H:%M} 至 {period_end:%Y-%m-%d %H:%M}",
                 "",
                 "## 原材料动态",

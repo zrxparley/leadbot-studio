@@ -1,28 +1,50 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 from typing import Any
 
 from app.core.config import get_settings
-from app.studio.schemas import AgentBot, LeadBot, StudioManifest, WorkflowDefinition
+from app.studio.schemas import (
+    AgentBot,
+    LeadBot,
+    StudioManifest,
+    WorkflowDefinition,
+    WorkflowRunPreview,
+    WorkflowRunRequest,
+    WorkflowRunStepPreview,
+)
 
 
 class WorkflowNotFoundError(ValueError):
     """Raised when a requested workflow is not defined in the studio manifest."""
 
 
-class StudioManifestService:
+class AgentNotFoundError(ValueError):
+    """Raised when a requested agent is not defined in the studio manifest."""
+
+
+class EntityConflictError(ValueError):
+    """Raised when a requested create or update would conflict with existing data."""
+
+
+class EntityInUseError(ValueError):
+    """Raised when a delete would leave dangling references behind."""
+
+
+class StudioManifestRepository:
     def __init__(self, manifest_path: str | None = None) -> None:
         settings = get_settings()
         self.manifest_path = Path(manifest_path or settings.leadbot_manifest_path)
 
-    def load_manifest(self) -> StudioManifest:
-        self._ensure_manifest_exists()
+    def load(self) -> StudioManifest:
+        self._ensure_exists()
         payload = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         return StudioManifest.model_validate(payload)
 
-    def save_manifest(self, manifest: StudioManifest | dict[str, Any]) -> StudioManifest:
+    def save(self, manifest: StudioManifest | dict[str, Any]) -> StudioManifest:
         validated = (
             manifest
             if isinstance(manifest, StudioManifest)
@@ -34,6 +56,26 @@ class StudioManifestService:
             encoding="utf-8",
         )
         return validated
+
+    def _ensure_exists(self) -> None:
+        if self.manifest_path.exists():
+            return
+        self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        self.manifest_path.write_text(
+            json.dumps(_default_manifest_payload(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
+
+class StudioManifestService:
+    def __init__(self, manifest_path: str | None = None) -> None:
+        self.repository = StudioManifestRepository(manifest_path)
+
+    def load_manifest(self) -> StudioManifest:
+        return self.repository.load()
+
+    def save_manifest(self, manifest: StudioManifest | dict[str, Any]) -> StudioManifest:
+        return self.repository.save(manifest)
 
     def get_summary(self) -> dict[str, Any]:
         manifest = self.load_manifest()
@@ -60,17 +102,168 @@ class StudioManifestService:
         manifest = self.load_manifest()
         return [manifest.lead_bot, *manifest.agents]
 
+    def get_agent(self, agent_id: str) -> LeadBot | AgentBot:
+        manifest = self.load_manifest()
+        if manifest.lead_bot.id == agent_id:
+            return manifest.lead_bot
+        for agent in manifest.agents:
+            if agent.id == agent_id:
+                return agent
+        raise AgentNotFoundError(agent_id)
+
+    def create_agent(self, agent: AgentBot | dict[str, Any]) -> AgentBot:
+        manifest = self.load_manifest()
+        candidate = agent if isinstance(agent, AgentBot) else AgentBot.model_validate(agent)
+        if candidate.id == manifest.lead_bot.id or any(
+            existing.id == candidate.id for existing in manifest.agents
+        ):
+            raise EntityConflictError(f"Agent '{candidate.id}' already exists.")
+
+        agents = [*manifest.agents, candidate]
+        manages_agents = list(manifest.lead_bot.manages_agents)
+        if candidate.id not in manages_agents:
+            manages_agents.append(candidate.id)
+        lead_bot = manifest.lead_bot.model_copy(update={"manages_agents": manages_agents})
+        updated = manifest.model_copy(update={"lead_bot": lead_bot, "agents": agents})
+        self.save_manifest(updated)
+        return candidate
+
+    def update_agent(self, agent_id: str, agent: AgentBot | dict[str, Any]) -> AgentBot:
+        manifest = self.load_manifest()
+        candidate = agent if isinstance(agent, AgentBot) else AgentBot.model_validate(agent)
+        if candidate.id != agent_id:
+            raise EntityConflictError("Agent id in the payload must match the path parameter.")
+
+        for index, existing in enumerate(manifest.agents):
+            if existing.id != agent_id:
+                continue
+            agents = list(manifest.agents)
+            agents[index] = candidate
+            updated = manifest.model_copy(update={"agents": agents})
+            self.save_manifest(updated)
+            return candidate
+        raise AgentNotFoundError(agent_id)
+
+    def delete_agent(self, agent_id: str) -> dict[str, str]:
+        manifest = self.load_manifest()
+        if manifest.lead_bot.id == agent_id:
+            raise EntityInUseError("LeadBot cannot be deleted from the studio manifest.")
+
+        for workflow in manifest.workflows:
+            participants = {participant.agent_id for participant in workflow.participants}
+            owners = {step.owner_agent_id for step in workflow.steps}
+            handoffs = {target for step in workflow.steps for target in step.handoff_to}
+            if agent_id in participants or agent_id in owners or agent_id in handoffs:
+                raise EntityInUseError(
+                    f"Agent '{agent_id}' is still referenced by workflow '{workflow.id}'."
+                )
+
+        remaining_agents = [agent for agent in manifest.agents if agent.id != agent_id]
+        if len(remaining_agents) == len(manifest.agents):
+            raise AgentNotFoundError(agent_id)
+
+        lead_bot = manifest.lead_bot.model_copy(
+            update={
+                "manages_agents": [
+                    managed_id
+                    for managed_id in manifest.lead_bot.manages_agents
+                    if managed_id != agent_id
+                ],
+                "governance": manifest.lead_bot.governance.model_copy(
+                    update={
+                        "a2a_allow": [
+                            allowed_id
+                            for allowed_id in manifest.lead_bot.governance.a2a_allow
+                            if allowed_id != agent_id
+                        ]
+                    }
+                ),
+            }
+        )
+        updated = manifest.model_copy(update={"lead_bot": lead_bot, "agents": remaining_agents})
+        self.save_manifest(updated)
+        return {"deleted_agent_id": agent_id}
+
     def list_workflows(self) -> list[WorkflowDefinition]:
         return self.load_manifest().workflows
 
-    def get_workflow_plan(self, workflow_id: str) -> dict[str, Any]:
+    def get_workflow(self, workflow_id: str) -> WorkflowDefinition:
         manifest = self.load_manifest()
-        workflow = next((item for item in manifest.workflows if item.id == workflow_id), None)
-        if workflow is None:
+        for workflow in manifest.workflows:
+            if workflow.id == workflow_id:
+                return workflow
+        raise WorkflowNotFoundError(workflow_id)
+
+    def create_workflow(
+        self, workflow: WorkflowDefinition | dict[str, Any]
+    ) -> WorkflowDefinition:
+        manifest = self.load_manifest()
+        candidate = (
+            workflow
+            if isinstance(workflow, WorkflowDefinition)
+            else WorkflowDefinition.model_validate(workflow)
+        )
+        if any(existing.id == candidate.id for existing in manifest.workflows):
+            raise EntityConflictError(f"Workflow '{candidate.id}' already exists.")
+
+        workflows = [*manifest.workflows, candidate]
+        workflow_ids = list(manifest.lead_bot.workflow_ids)
+        if candidate.id not in workflow_ids:
+            workflow_ids.append(candidate.id)
+        lead_bot = manifest.lead_bot.model_copy(update={"workflow_ids": workflow_ids})
+        updated = manifest.model_copy(update={"lead_bot": lead_bot, "workflows": workflows})
+        self.save_manifest(updated)
+        return candidate
+
+    def update_workflow(
+        self, workflow_id: str, workflow: WorkflowDefinition | dict[str, Any]
+    ) -> WorkflowDefinition:
+        manifest = self.load_manifest()
+        candidate = (
+            workflow
+            if isinstance(workflow, WorkflowDefinition)
+            else WorkflowDefinition.model_validate(workflow)
+        )
+        if candidate.id != workflow_id:
+            raise EntityConflictError("Workflow id in the payload must match the path parameter.")
+
+        for index, existing in enumerate(manifest.workflows):
+            if existing.id != workflow_id:
+                continue
+            workflows = list(manifest.workflows)
+            workflows[index] = candidate
+            updated = manifest.model_copy(update={"workflows": workflows})
+            self.save_manifest(updated)
+            return candidate
+        raise WorkflowNotFoundError(workflow_id)
+
+    def delete_workflow(self, workflow_id: str) -> dict[str, str]:
+        manifest = self.load_manifest()
+        remaining_workflows = [
+            workflow for workflow in manifest.workflows if workflow.id != workflow_id
+        ]
+        if len(remaining_workflows) == len(manifest.workflows):
             raise WorkflowNotFoundError(workflow_id)
 
-        agent_map = {manifest.lead_bot.id: manifest.lead_bot}
-        agent_map.update({agent.id: agent for agent in manifest.agents})
+        lead_bot = manifest.lead_bot.model_copy(
+            update={
+                "workflow_ids": [
+                    existing_id
+                    for existing_id in manifest.lead_bot.workflow_ids
+                    if existing_id != workflow_id
+                ]
+            }
+        )
+        updated = manifest.model_copy(
+            update={"lead_bot": lead_bot, "workflows": remaining_workflows}
+        )
+        self.save_manifest(updated)
+        return {"deleted_workflow_id": workflow_id}
+
+    def get_workflow_plan(self, workflow_id: str) -> dict[str, Any]:
+        manifest = self.load_manifest()
+        workflow = self.get_workflow(workflow_id)
+        agent_map = self._build_agent_map(manifest)
 
         steps = []
         edges = []
@@ -150,6 +343,64 @@ class StudioManifestService:
                 },
             },
         }
+
+    def create_workflow_dry_run(
+        self, workflow_id: str, request: WorkflowRunRequest | dict[str, Any] | None = None
+    ) -> WorkflowRunPreview:
+        manifest = self.load_manifest()
+        workflow = self.get_workflow(workflow_id)
+        request_model = (
+            request
+            if isinstance(request, WorkflowRunRequest)
+            else WorkflowRunRequest.model_validate(request or {})
+        )
+        agent_map = self._build_agent_map(manifest)
+
+        step_previews: list[WorkflowRunStepPreview] = []
+        next_steps: list[str] = []
+        blocked_steps: list[str] = []
+        approval_steps: list[str] = []
+        for step in workflow.steps:
+            owner = agent_map[step.owner_agent_id]
+            blockers = list(step.depends_on)
+            status = "queued" if not blockers else "blocked"
+            if status == "queued":
+                next_steps.append(step.id)
+            else:
+                blocked_steps.append(step.id)
+            if step.approval_required:
+                approval_steps.append(step.id)
+
+            step_previews.append(
+                WorkflowRunStepPreview(
+                    step_id=step.id,
+                    name=step.name,
+                    owner_agent_id=owner.id,
+                    owner_display_name=owner.identity.display_name,
+                    status=status,
+                    depends_on=step.depends_on,
+                    blockers=blockers,
+                    deliverables=step.deliverables,
+                    approval_required=step.approval_required,
+                    handoff_to=step.handoff_to,
+                )
+            )
+
+        return WorkflowRunPreview(
+            run_id=f"dryrun-{workflow.id}-{uuid4().hex[:8]}",
+            workflow_id=workflow.id,
+            workflow_name=workflow.name,
+            lead_agent_id=manifest.lead_bot.id,
+            operator=request_model.operator,
+            input_summary=request_model.input_summary,
+            requested_outputs=request_model.requested_outputs or workflow.outputs,
+            created_at=datetime.now(UTC),
+            next_steps=next_steps,
+            blocked_steps=blocked_steps,
+            approval_steps=approval_steps,
+            step_previews=step_previews,
+            metadata=request_model.metadata,
+        )
 
     def export_openclaw_bundle(self) -> dict[str, Any]:
         manifest = self.load_manifest()
@@ -244,14 +495,11 @@ class StudioManifestService:
             ],
         }
 
-    def _ensure_manifest_exists(self) -> None:
-        if self.manifest_path.exists():
-            return
-        self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        self.manifest_path.write_text(
-            json.dumps(_default_manifest_payload(), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
+    @staticmethod
+    def _build_agent_map(manifest: StudioManifest) -> dict[str, LeadBot | AgentBot]:
+        agent_map: dict[str, LeadBot | AgentBot] = {manifest.lead_bot.id: manifest.lead_bot}
+        agent_map.update({agent.id: agent for agent in manifest.agents})
+        return agent_map
 
 
 def _default_manifest_payload() -> dict[str, Any]:

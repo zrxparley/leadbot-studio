@@ -111,7 +111,6 @@ class UNGMNoticeConnector:
         contact_email = self._extract_contact_email(text) or self._extract_best_email(text)
         contact_phone = self._extract_contact_phone(text) or self._extract_best_phone(text)
         buyer_contact_name = self._extract_contact_name(text)
-        has_direct_contact = bool(contact_email or contact_phone)
 
         enriched = None
         if organization and not (contact_email or contact_phone):
