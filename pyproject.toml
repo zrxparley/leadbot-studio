@@ -5,13 +5,8 @@ description = "LeadBot Studio: an OpenClaw control-plane framework for coordinat
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "apscheduler>=3.10.4,<4.0.0",
-  "beautifulsoup4>=4.12.3,<5.0.0",
   "fastapi>=0.116.0,<1.0.0",
-  "httpx>=0.28.1,<1.0.0",
-  "playwright>=1.49.0,<2.0.0",
   "pydantic-settings>=2.8.1,<3.0.0",
-  "requests>=2.32.3,<3.0.0",
   "sqlalchemy>=2.0.39,<3.0.0",
   "uvicorn>=0.34.0,<1.0.0",
 ]

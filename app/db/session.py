@@ -16,26 +16,6 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, clas
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
-    if settings.database_url.startswith("sqlite"):
-        _ensure_sqlite_lead_columns()
-
-
-def _ensure_sqlite_lead_columns() -> None:
-    column_definitions = {
-        "demand_summary": "TEXT",
-        "demand_posted_at": "DATETIME",
-        "buyer_contact_name": "VARCHAR(255)",
-        "contact_email": "VARCHAR(255)",
-        "contact_phone": "VARCHAR(255)",
-        "demand_type": "VARCHAR(40)",
-    }
-    with engine.begin() as connection:
-        rows = connection.exec_driver_sql("PRAGMA table_info(leads)").fetchall()
-        existing_columns = {row[1] for row in rows}
-        for column_name, ddl in column_definitions.items():
-            if column_name in existing_columns:
-                continue
-            connection.exec_driver_sql(f"ALTER TABLE leads ADD COLUMN {column_name} {ddl}")
 
 
 def get_db() -> Generator[Session, None, None]:

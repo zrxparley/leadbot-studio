@@ -1,2 +1,1 @@
-"""Market Insight Officer application package."""
-
+"""LeadBot Studio application package."""
