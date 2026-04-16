@@ -84,6 +84,7 @@ LeadBot 是控制平面，不是网关替代品。
 - `POST /studio/workflows/{workflow_id}/runs`
 - `GET /studio/runs`
 - `GET /studio/runs/{run_id}`
+- `GET /studio/runs/{run_id}/events`
 - `PATCH /studio/runs/{run_id}`
 - `PATCH /studio/runs/{run_id}/steps/{step_id}`
 - `GET /studio/openclaw/export`

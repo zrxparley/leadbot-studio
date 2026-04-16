@@ -167,6 +167,14 @@ def get_workflow_run(run_id: str, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=404, detail=f"Unknown workflow run: {exc}") from exc
 
 
+@router.get("/runs/{run_id}/events")
+def list_workflow_run_events(run_id: str, db: Session = Depends(get_db)) -> list[dict]:
+    try:
+        return WorkflowRunService(db, studio_service).list_run_events(run_id)
+    except WorkflowRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow run: {exc}") from exc
+
+
 @router.patch("/runs/{run_id}")
 def update_workflow_run(
     run_id: str,

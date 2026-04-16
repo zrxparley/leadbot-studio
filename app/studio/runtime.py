@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.models import WorkflowRunRecord
+from app.db.models import WorkflowRunEventRecord, WorkflowRunRecord
 from app.studio.schemas import (
     RunStatus,
     StepStatus,
@@ -58,6 +58,19 @@ class WorkflowRunService:
             metadata_json=json.dumps(preview.metadata, ensure_ascii=False),
         )
         self.db.add(record)
+        self.db.flush()
+        self._append_event(
+            run_id=record.run_id,
+            workflow_id=record.workflow_id,
+            event_type="run_created",
+            actor=record.operator,
+            target_kind="run",
+            target_id=record.run_id,
+            from_status=None,
+            to_status=record.status,
+            note=record.input_summary,
+            metadata={"mode": record.mode},
+        )
         self.db.commit()
         self.db.refresh(record)
         return record.to_dict()
@@ -72,6 +85,15 @@ class WorkflowRunService:
         record = self._get_record(run_id)
         return record.to_dict()
 
+    def list_run_events(self, run_id: str) -> list[dict]:
+        self._get_record(run_id)
+        statement = (
+            select(WorkflowRunEventRecord)
+            .where(WorkflowRunEventRecord.run_id == run_id)
+            .order_by(WorkflowRunEventRecord.created_at.asc(), WorkflowRunEventRecord.id.asc())
+        )
+        return [event.to_dict() for event in self.db.scalars(statement).all()]
+
     def update_run(
         self, run_id: str, request: WorkflowRunUpdateRequest | dict[str, Any]
     ) -> dict:
@@ -82,7 +104,8 @@ class WorkflowRunService:
             else WorkflowRunUpdateRequest.model_validate(request)
         )
 
-        self._validate_run_transition(record.status, update.status)
+        from_status = record.status
+        self._validate_run_transition(from_status, update.status)
         record.status = update.status
         metadata = json.loads(record.metadata_json)
         if update.note:
@@ -90,6 +113,18 @@ class WorkflowRunService:
         if update.operator:
             record.operator = update.operator
         record.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        self._append_event(
+            run_id=record.run_id,
+            workflow_id=record.workflow_id,
+            event_type="run_status_updated",
+            actor=update.operator or record.operator,
+            target_kind="run",
+            target_id=record.run_id,
+            from_status=from_status,
+            to_status=record.status,
+            note=update.note,
+            metadata={},
+        )
         self.db.commit()
         self.db.refresh(record)
         return record.to_dict()
@@ -116,7 +151,8 @@ class WorkflowRunService:
             raise WorkflowRunTransitionError(f"Unknown step '{step_id}' in run '{run_id}'.")
 
         step = step_map[step_id]
-        self._validate_step_transition(step["status"], update.status)
+        from_status = step["status"]
+        self._validate_step_transition(from_status, update.status)
         if update.status in {"running", "awaiting_approval", "completed"} and step["blockers"]:
             raise WorkflowRunTransitionError(
                 f"Step '{step_id}' is still blocked by: {', '.join(step['blockers'])}."
@@ -130,8 +166,34 @@ class WorkflowRunService:
             self._unlock_dependent_steps(step_id, step_previews)
 
         record.step_previews_json = json.dumps(step_previews, ensure_ascii=False)
+        previous_run_status = record.status
         record.status = self._derive_run_status(step_previews, record.status)
         self._refresh_run_indexes(record, step_previews)
+        self._append_event(
+            run_id=record.run_id,
+            workflow_id=record.workflow_id,
+            event_type="step_status_updated",
+            actor=record.operator,
+            target_kind="step",
+            target_id=step_id,
+            from_status=from_status,
+            to_status=step["status"],
+            note=update.note,
+            metadata={},
+        )
+        if record.status != previous_run_status:
+            self._append_event(
+                run_id=record.run_id,
+                workflow_id=record.workflow_id,
+                event_type="run_status_derived",
+                actor=record.operator,
+                target_kind="run",
+                target_id=record.run_id,
+                from_status=previous_run_status,
+                to_status=record.status,
+                note=f"Derived from step '{step_id}' transition.",
+                metadata={},
+            )
         self.db.commit()
         self.db.refresh(record)
         return record.to_dict()
@@ -233,4 +295,33 @@ class WorkflowRunService:
                 if step["status"] == "awaiting_approval" or step["approval_required"]
             ],
             ensure_ascii=False,
+        )
+
+    def _append_event(
+        self,
+        *,
+        run_id: str,
+        workflow_id: str,
+        event_type: str,
+        actor: str | None,
+        target_kind: str,
+        target_id: str | None,
+        from_status: str | None,
+        to_status: str | None,
+        note: str | None,
+        metadata: dict[str, Any],
+    ) -> None:
+        self.db.add(
+            WorkflowRunEventRecord(
+                run_id=run_id,
+                workflow_id=workflow_id,
+                event_type=event_type,
+                actor=actor,
+                target_kind=target_kind,
+                target_id=target_id,
+                from_status=from_status,
+                to_status=to_status,
+                note=note,
+                metadata_json=json.dumps(metadata, ensure_ascii=False),
+            )
         )

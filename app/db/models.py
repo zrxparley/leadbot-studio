@@ -63,3 +63,38 @@ class WorkflowRunRecord(Base, TimestampMixin):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+
+
+class WorkflowRunEventRecord(Base, TimestampMixin):
+    __tablename__ = "workflow_run_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(64), index=True)
+    workflow_id: Mapped[str] = mapped_column(String(120), index=True)
+    event_type: Mapped[str] = mapped_column(String(80))
+    actor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    target_kind: Mapped[str] = mapped_column(String(40))
+    target_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    from_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    def to_dict(self) -> dict[str, Any]:
+        import json
+
+        return {
+            "id": self.id,
+            "run_id": self.run_id,
+            "workflow_id": self.workflow_id,
+            "event_type": self.event_type,
+            "actor": self.actor,
+            "target_kind": self.target_kind,
+            "target_id": self.target_id,
+            "from_status": self.from_status,
+            "to_status": self.to_status,
+            "note": self.note,
+            "metadata": json.loads(self.metadata_json),
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }

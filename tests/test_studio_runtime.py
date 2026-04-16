@@ -90,6 +90,23 @@ def test_unknown_run_raises(tmp_path):
         db.close()
 
 
+def test_run_creation_emits_audit_event(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    manifest_service = StudioManifestService(str(manifest_path))
+    db = _build_session(tmp_path)
+
+    try:
+        service = WorkflowRunService(db, manifest_service)
+        created = service.create_run("build-delivery", WorkflowRunRequest(operator="aha"))
+        events = service.list_run_events(created["run_id"])
+
+        assert len(events) == 1
+        assert events[0]["event_type"] == "run_created"
+        assert events[0]["to_status"] == "previewed"
+    finally:
+        db.close()
+
+
 def test_run_status_can_transition_from_previewed_to_running(tmp_path):
     manifest_path = tmp_path / "leadbot_studio_manifest.json"
     manifest_service = StudioManifestService(str(manifest_path))
@@ -134,6 +151,33 @@ def test_step_completion_unblocks_downstream_steps(tmp_path):
         assert "build" in updated["next_steps"]
         assert step_map["build"]["status"] == "queued"
         assert step_map["build"]["blockers"] == []
+    finally:
+        db.close()
+
+
+def test_step_transition_emits_step_and_run_events(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    manifest_service = StudioManifestService(str(manifest_path))
+    db = _build_session(tmp_path)
+
+    try:
+        service = WorkflowRunService(db, manifest_service)
+        created = service.create_run("build-delivery", WorkflowRunRequest(operator="aha"))
+        service.update_run_step(
+            created["run_id"],
+            "intake",
+            WorkflowRunStepUpdateRequest(status="completed", note="Intake done."),
+        )
+        events = service.list_run_events(created["run_id"])
+
+        assert [event["event_type"] for event in events] == [
+            "run_created",
+            "step_status_updated",
+            "run_status_derived",
+        ]
+        assert events[1]["target_kind"] == "step"
+        assert events[1]["target_id"] == "intake"
+        assert events[2]["to_status"] == "queued"
     finally:
         db.close()
 
