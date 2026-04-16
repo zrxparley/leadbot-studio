@@ -129,6 +129,12 @@ uvicorn app.main:app --reload
 http://127.0.0.1:8000/docs
 ```
 
+控制台首页：
+
+```text
+http://127.0.0.1:8000/studio/console
+```
+
 首次访问 `/studio/*` 接口时，系统会自动生成默认 manifest：
 
 ```text
