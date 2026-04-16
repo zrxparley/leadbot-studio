@@ -20,6 +20,10 @@ def test_console_page_renders():
     assert response.status_code == 200
     assert "LeadBot Studio Console" in response.text
     assert "/studio/summary" in response.text
+    assert "Configuration Studio" in response.text
+    assert "Low-code configuration" in response.text
+    assert "New Agent" in response.text
+    assert "New Workflow" in response.text
     assert "Run Controls" in response.text
     assert "Step Controls" in response.text
     assert "Apply Run Status" in response.text

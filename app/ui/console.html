@@ -1,0 +1,2455 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>LeadBot Studio Console</title>
+    <style>
+      :root {
+        --bg: #f7f1e6;
+        --ink: #171310;
+        --muted: #6d6256;
+        --panel: rgba(255, 251, 245, 0.86);
+        --panel-strong: rgba(255, 252, 248, 0.97);
+        --panel-dark: rgba(30, 24, 20, 0.92);
+        --line: rgba(23, 19, 16, 0.1);
+        --line-strong: rgba(23, 19, 16, 0.18);
+        --accent: #b45234;
+        --accent-soft: rgba(180, 82, 52, 0.12);
+        --accent-cool: #255e69;
+        --accent-cool-soft: rgba(37, 94, 105, 0.12);
+        --success: #2f7758;
+        --warning: #a66b16;
+        --danger: #9f3732;
+        --shadow: 0 24px 80px rgba(60, 34, 17, 0.12);
+        --shadow-strong: 0 28px 90px rgba(27, 18, 12, 0.18);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        color: var(--ink);
+        font-family: "Iowan Old Style", "Baskerville", "Palatino Linotype", serif;
+        background:
+          radial-gradient(circle at top left, rgba(180, 82, 52, 0.16), transparent 28%),
+          radial-gradient(circle at top right, rgba(37, 94, 105, 0.16), transparent 26%),
+          linear-gradient(180deg, #fbf6ef 0%, #efe5d5 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.34;
+        background-image:
+          linear-gradient(rgba(23, 19, 16, 0.035) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(23, 19, 16, 0.035) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+
+      button,
+      .button {
+        appearance: none;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 18px;
+        background: var(--ink);
+        color: #fff8f2;
+        cursor: pointer;
+        transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease,
+          background 160ms ease;
+      }
+
+      button:hover,
+      .button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 24px rgba(23, 19, 16, 0.14);
+      }
+
+      button.secondary,
+      .button.secondary {
+        background: rgba(23, 19, 16, 0.08);
+        color: var(--ink);
+      }
+
+      button.ghost,
+      .button.ghost {
+        background: transparent;
+        border: 1px solid var(--line);
+        color: var(--ink);
+      }
+
+      button.danger {
+        background: var(--danger);
+        color: white;
+      }
+
+      button.small {
+        padding: 9px 14px;
+        font-size: 0.9rem;
+      }
+
+      button:disabled {
+        opacity: 0.58;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .shell {
+        position: relative;
+        z-index: 1;
+        max-width: 1560px;
+        margin: 0 auto;
+        padding: 28px;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 22px;
+        margin-bottom: 22px;
+      }
+
+      .panel,
+      .hero-panel {
+        position: relative;
+        overflow: hidden;
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.56);
+        backdrop-filter: blur(24px);
+        box-shadow: var(--shadow);
+      }
+
+      .hero-panel {
+        border-radius: 30px;
+        padding: 28px;
+      }
+
+      .panel {
+        border-radius: 26px;
+        padding: 22px;
+      }
+
+      .hero-panel::after,
+      .panel::after,
+      .editor-drawer::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        border: 1px solid rgba(255, 255, 255, 0.34);
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--accent);
+        font-size: 12px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4 {
+        margin: 0;
+        font-weight: 600;
+      }
+
+      h1 {
+        margin-top: 18px;
+        max-width: 12ch;
+        font-size: clamp(3rem, 5vw, 5.6rem);
+        line-height: 0.9;
+      }
+
+      .hero-copy {
+        margin-top: 16px;
+        max-width: 60ch;
+        color: var(--muted);
+        font-size: 1.03rem;
+        line-height: 1.7;
+      }
+
+      .hero-actions,
+      .button-row,
+      .pill-row,
+      .inline-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .hero-actions {
+        margin-top: 22px;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        height: 100%;
+      }
+
+      .metric {
+        min-height: 144px;
+        padding: 18px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .metric-label,
+      .section-kicker,
+      .control-title {
+        color: var(--muted);
+        font-size: 0.84rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .metric-value {
+        margin-top: 16px;
+        font-size: clamp(2rem, 3vw, 3.1rem);
+        line-height: 1;
+      }
+
+      .metric-detail,
+      .panel-subtitle,
+      .meta,
+      .control-meta,
+      .statusline {
+        color: var(--muted);
+        font-size: 0.93rem;
+        line-height: 1.6;
+      }
+
+      .panel-header,
+      .split {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 340px minmax(0, 1fr) 390px;
+        gap: 18px;
+      }
+
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .card,
+      .section,
+      .control-card,
+      .collection-item,
+      .lead-card {
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.58);
+      }
+
+      .card,
+      .lead-card {
+        padding: 16px;
+        transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+      }
+
+      .card:hover,
+      .lead-card:hover {
+        transform: translateY(-1px);
+        border-color: rgba(180, 82, 52, 0.26);
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .card.active {
+        border-color: rgba(180, 82, 52, 0.48);
+        background: linear-gradient(
+          135deg,
+          rgba(180, 82, 52, 0.13),
+          rgba(255, 255, 255, 0.94)
+        );
+      }
+
+      .lead-card {
+        background:
+          linear-gradient(135deg, rgba(37, 94, 105, 0.16), rgba(255, 255, 255, 0.92)),
+          rgba(255, 255, 255, 0.6);
+      }
+
+      .section,
+      .control-card {
+        padding: 16px;
+      }
+
+      .control-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 14px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        background: rgba(23, 19, 16, 0.06);
+        color: var(--ink);
+        font-size: 0.8rem;
+      }
+
+      .pill.status-previewed,
+      .pill.status-queued {
+        background: rgba(37, 94, 105, 0.12);
+        color: var(--accent-cool);
+      }
+
+      .pill.status-running {
+        background: rgba(180, 82, 52, 0.14);
+        color: var(--accent);
+      }
+
+      .pill.status-awaiting_approval,
+      .pill.status-blocked {
+        background: rgba(166, 107, 22, 0.14);
+        color: var(--warning);
+      }
+
+      .pill.status-completed {
+        background: rgba(47, 119, 88, 0.16);
+        color: var(--success);
+      }
+
+      .pill.status-failed,
+      .pill.status-cancelled {
+        background: rgba(159, 55, 50, 0.16);
+        color: var(--danger);
+      }
+
+      .highlight {
+        color: var(--accent);
+      }
+
+      .detail-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+        gap: 16px;
+      }
+
+      .section + .section {
+        margin-top: 14px;
+      }
+
+      .section h3 {
+        margin-bottom: 12px;
+        font-size: 0.98rem;
+      }
+
+      .step {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 12px;
+        align-items: start;
+        padding: 12px 0;
+        border-top: 1px solid rgba(23, 19, 16, 0.08);
+      }
+
+      .step:first-child {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      .step-index {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(23, 19, 16, 0.07);
+        font-size: 0.9rem;
+      }
+
+      .step-title {
+        font-size: 0.98rem;
+      }
+
+      .step-copy {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.6;
+      }
+
+      .timeline {
+        position: relative;
+        padding-left: 18px;
+      }
+
+      .timeline::before {
+        content: "";
+        position: absolute;
+        left: 4px;
+        top: 8px;
+        bottom: 8px;
+        width: 2px;
+        background: rgba(23, 19, 16, 0.12);
+      }
+
+      .event {
+        position: relative;
+        padding: 0 0 16px 18px;
+      }
+
+      .event::before {
+        content: "";
+        position: absolute;
+        left: -1px;
+        top: 6px;
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px rgba(180, 82, 52, 0.12);
+      }
+
+      .event-type {
+        font-size: 0.84rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .event-body {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.6;
+      }
+
+      .timestamp {
+        display: inline-block;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .empty {
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px dashed rgba(23, 19, 16, 0.18);
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .prelude {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .glance {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.42);
+        background: rgba(255, 255, 255, 0.54);
+      }
+
+      .glance strong {
+        display: block;
+        font-size: 1rem;
+      }
+
+      .run-controls textarea,
+      .field textarea,
+      .field input,
+      .field select,
+      .inline-form input,
+      .inline-form select {
+        width: 100%;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.76);
+        padding: 12px 14px;
+        color: var(--ink);
+      }
+
+      .run-controls textarea,
+      .field textarea {
+        min-height: 112px;
+        resize: vertical;
+      }
+
+      .inline-form select,
+      .inline-form input {
+        min-height: 46px;
+      }
+
+      .run-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "SFMono-Regular", "Menlo", "Monaco", monospace;
+        font-size: 0.82rem;
+        line-height: 1.68;
+      }
+
+      .editor-shell {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: none;
+      }
+
+      .editor-shell.open {
+        display: block;
+      }
+
+      .editor-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(18, 13, 10, 0.34);
+        backdrop-filter: blur(10px);
+      }
+
+      .editor-drawer {
+        position: absolute;
+        top: 16px;
+        right: 16px;
+        bottom: 16px;
+        width: min(860px, calc(100vw - 32px));
+        display: flex;
+        flex-direction: column;
+        border-radius: 28px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at top right, rgba(180, 82, 52, 0.1), transparent 22%),
+          linear-gradient(180deg, rgba(255, 251, 246, 0.98), rgba(245, 237, 225, 0.96));
+        border: 1px solid rgba(255, 255, 255, 0.56);
+        box-shadow: var(--shadow-strong);
+      }
+
+      .editor-header,
+      .editor-footer {
+        padding: 18px 22px;
+        background: rgba(255, 255, 255, 0.54);
+        border-bottom: 1px solid rgba(23, 19, 16, 0.08);
+      }
+
+      .editor-footer {
+        margin-top: auto;
+        border-top: 1px solid rgba(23, 19, 16, 0.08);
+        border-bottom: none;
+      }
+
+      .editor-body {
+        flex: 1;
+        overflow: auto;
+        padding: 22px;
+      }
+
+      .editor-title {
+        font-size: 1.4rem;
+      }
+
+      .editor-subtitle {
+        margin-top: 6px;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .editor-status {
+        min-height: 24px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .form-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .field.span-2 {
+        grid-column: span 2;
+      }
+
+      .field label {
+        font-size: 0.88rem;
+        color: var(--muted);
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .collection {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .collection-item {
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.68);
+      }
+
+      .collection-item.locked {
+        background:
+          linear-gradient(135deg, rgba(37, 94, 105, 0.12), rgba(255, 255, 255, 0.7)),
+          rgba(255, 255, 255, 0.68);
+      }
+
+      .collection-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .collection-title {
+        font-size: 0.96rem;
+      }
+
+      .loading {
+        opacity: 0.64;
+      }
+
+      @media (max-width: 1240px) {
+        .hero,
+        .layout,
+        .detail-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 880px) {
+        .field-grid,
+        .summary-grid,
+        .prelude {
+          grid-template-columns: 1fr;
+        }
+
+        .editor-drawer {
+          top: 10px;
+          right: 10px;
+          left: 10px;
+          bottom: 10px;
+          width: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <section class="hero">
+        <div class="hero-panel">
+          <div class="eyebrow">LeadBot Studio Console</div>
+          <h1>Design the studio. Run the studio.</h1>
+          <p class="hero-copy">
+            This is a low-code operator cockpit for multi-agent work. Use it to shape
+            specialist bots, compose workflow systems, launch runs, inspect events, and
+            export the current studio into OpenClaw-friendly coordination metadata.
+          </p>
+          <div class="hero-actions">
+            <button id="refreshButton" type="button">Refresh Studio</button>
+            <button class="secondary" id="newAgentButton" type="button">New Agent</button>
+            <button class="secondary" id="newWorkflowButton" type="button">New Workflow</button>
+            <button class="ghost" id="openDocsButton" type="button">Open API Docs</button>
+          </div>
+          <div class="prelude">
+            <div class="glance">
+              <span class="section-kicker">Builder Mode</span>
+              <strong>Low-code configuration</strong>
+              <div class="meta">
+                AgentBot and Workflow definitions are editable from the web console without
+                hand-editing the manifest.
+              </div>
+            </div>
+            <div class="glance">
+              <span class="section-kicker">Operator Mode</span>
+              <strong>Live run control</strong>
+              <div class="meta">
+                Transition runs, push step ownership forward, and watch the audit trail update
+                in one place.
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-panel">
+          <div id="summaryGrid" class="summary-grid"></div>
+        </div>
+      </section>
+
+      <section class="layout">
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Agent Directory</h2>
+              <div class="panel-subtitle">LeadBot overview plus editable specialist roster.</div>
+            </div>
+            <button class="secondary small" id="newAgentButtonInline" type="button">New Agent</button>
+          </div>
+          <div id="leadSpotlight"></div>
+          <div class="section" style="margin-top: 14px;">
+            <div class="split">
+              <h3>Specialists</h3>
+              <span class="statusline">Click edit to open the builder drawer.</span>
+            </div>
+            <div id="agentsList" class="stack" style="margin-top: 12px;"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Configuration Studio</h2>
+              <div class="panel-subtitle">
+                Build flows, inspect structure, and launch work from the same surface.
+              </div>
+            </div>
+            <button class="secondary small" id="newWorkflowButtonInline" type="button">New Workflow</button>
+          </div>
+          <div class="detail-grid">
+            <div>
+              <div id="workflowList" class="stack"></div>
+            </div>
+            <div>
+              <div class="section">
+                <h3>Quick Run</h3>
+                <div class="run-controls">
+                  <textarea id="runInput" placeholder="Describe the operator intent for the next run."></textarea>
+                  <div class="split">
+                    <button id="createRunButton" type="button">Create Run</button>
+                    <span id="runCreateStatus" class="statusline"></span>
+                  </div>
+                </div>
+              </div>
+              <div id="workflowMeta" class="section"></div>
+            </div>
+          </div>
+          <div class="section">
+            <h3>Workflow Steps</h3>
+            <div id="workflowSteps"></div>
+          </div>
+          <div class="section">
+            <div class="split">
+              <h3>OpenClaw Export</h3>
+              <button class="secondary small" id="copyExportButton" type="button">Copy JSON</button>
+            </div>
+            <div id="exportMeta"></div>
+            <div class="control-card" style="margin-top: 14px;">
+              <pre id="exportPayload"></pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Run Control</h2>
+              <div class="panel-subtitle">Live execution state and audit history.</div>
+            </div>
+          </div>
+          <div id="runsList" class="stack"></div>
+          <div class="section">
+            <div class="split">
+              <h3>Selected Run</h3>
+              <span id="runActionStatus" class="statusline"></span>
+            </div>
+            <div id="runMeta"></div>
+          </div>
+          <div class="section">
+            <h3>Event Timeline</h3>
+            <div id="eventsList" class="timeline"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="editorShell" class="editor-shell" hidden>
+      <div class="editor-backdrop" data-action="close-editor"></div>
+      <aside class="editor-drawer">
+        <div class="editor-header">
+          <div class="split">
+            <div>
+              <div class="eyebrow">Studio Builder</div>
+              <div id="editorTitle" class="editor-title"></div>
+              <div id="editorSubtitle" class="editor-subtitle"></div>
+            </div>
+            <button class="ghost small" data-action="close-editor" type="button">Close</button>
+          </div>
+          <div id="editorStatus" class="editor-status"></div>
+        </div>
+        <div class="editor-body">
+          <form id="editorForm">
+            <div id="editorSections" class="form-stack"></div>
+          </form>
+        </div>
+        <div class="editor-footer">
+          <div class="split">
+            <button id="editorDeleteButton" class="danger" type="button" hidden>Delete</button>
+            <div class="button-row">
+              <button class="secondary" data-action="close-editor" type="button">Cancel</button>
+              <button id="editorSaveButton" type="button">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      const state = {
+        summary: null,
+        agents: [],
+        workflows: [],
+        workflowPlans: new Map(),
+        runs: [],
+        selectedWorkflowId: null,
+        selectedRunId: null,
+        exportBundle: null,
+        editor: {
+          open: false,
+          kind: null,
+          mode: "create",
+          sourceId: null,
+        },
+      };
+
+      const elements = {
+        summaryGrid: document.getElementById("summaryGrid"),
+        leadSpotlight: document.getElementById("leadSpotlight"),
+        agentsList: document.getElementById("agentsList"),
+        workflowList: document.getElementById("workflowList"),
+        workflowMeta: document.getElementById("workflowMeta"),
+        workflowSteps: document.getElementById("workflowSteps"),
+        runsList: document.getElementById("runsList"),
+        runMeta: document.getElementById("runMeta"),
+        eventsList: document.getElementById("eventsList"),
+        refreshButton: document.getElementById("refreshButton"),
+        newAgentButton: document.getElementById("newAgentButton"),
+        newAgentButtonInline: document.getElementById("newAgentButtonInline"),
+        newWorkflowButton: document.getElementById("newWorkflowButton"),
+        newWorkflowButtonInline: document.getElementById("newWorkflowButtonInline"),
+        createRunButton: document.getElementById("createRunButton"),
+        runCreateStatus: document.getElementById("runCreateStatus"),
+        runActionStatus: document.getElementById("runActionStatus"),
+        runInput: document.getElementById("runInput"),
+        openDocsButton: document.getElementById("openDocsButton"),
+        exportMeta: document.getElementById("exportMeta"),
+        exportPayload: document.getElementById("exportPayload"),
+        copyExportButton: document.getElementById("copyExportButton"),
+        editorShell: document.getElementById("editorShell"),
+        editorTitle: document.getElementById("editorTitle"),
+        editorSubtitle: document.getElementById("editorSubtitle"),
+        editorStatus: document.getElementById("editorStatus"),
+        editorDeleteButton: document.getElementById("editorDeleteButton"),
+        editorSaveButton: document.getElementById("editorSaveButton"),
+        editorForm: document.getElementById("editorForm"),
+        editorSections: document.getElementById("editorSections"),
+      };
+
+      const RUN_TRANSITIONS = {
+        previewed: ["queued", "cancelled"],
+        queued: ["running", "blocked", "cancelled"],
+        running: ["awaiting_approval", "failed", "completed", "blocked", "cancelled"],
+        awaiting_approval: ["running", "failed", "completed", "cancelled"],
+        blocked: ["queued", "running", "cancelled"],
+        failed: ["queued", "cancelled"],
+        completed: [],
+        cancelled: [],
+      };
+
+      const STEP_TRANSITIONS = {
+        blocked: ["queued"],
+        queued: ["running", "awaiting_approval", "completed", "failed"],
+        running: ["awaiting_approval", "completed", "failed", "queued"],
+        awaiting_approval: ["running", "completed", "failed"],
+        failed: ["queued"],
+        completed: [],
+      };
+
+      const SANDBOX_MODES = ["none", "workspace", "agent", "all"];
+      const SANDBOX_SCOPES = ["workspace", "agent"];
+      const SKILL_SOURCES = ["builtin", "local", "clawhub", "custom"];
+      const PEER_KINDS = ["dm", "group", "topic", "channel"];
+      const PARTICIPANT_MODES = ["lead", "owner", "support", "reviewer", "observer"];
+      const STEP_TYPES = ["intake", "research", "design", "build", "review", "qa", "publish", "ops", "custom"];
+
+      function escapeHtml(value) {
+        return String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#39;");
+      }
+
+      function deepClone(value) {
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function nullable(value) {
+        const normalized = String(value ?? "").trim();
+        return normalized || null;
+      }
+
+      function splitTokens(value) {
+        return String(value ?? "")
+          .split(/\n|,/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function listToLines(values) {
+        return (values || []).join("\n");
+      }
+
+      function parseKeyValueLines(value) {
+        const output = {};
+        String(value ?? "")
+          .split("\n")
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .forEach((line) => {
+            const separator = line.includes("=") ? "=" : ":";
+            const [rawKey, ...rest] = line.split(separator);
+            const key = rawKey?.trim();
+            const nextValue = rest.join(separator).trim();
+            if (key && nextValue) {
+              output[key] = nextValue;
+            }
+          });
+        return output;
+      }
+
+      function formatKeyValueLines(payload) {
+        return Object.entries(payload || {})
+          .map(([key, value]) => `${key}=${value}`)
+          .join("\n");
+      }
+
+      function parseJsonObject(value, label) {
+        const raw = String(value ?? "").trim();
+        if (!raw) {
+          return {};
+        }
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return parsed;
+          }
+          throw new Error(`${label} must be a JSON object.`);
+        } catch (error) {
+          throw new Error(`${label} must be valid JSON.`);
+        }
+      }
+
+      async function fetchJson(url, options) {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+          let detail = `Request failed: ${response.status}`;
+          try {
+            const payload = await response.json();
+            detail = payload.detail || JSON.stringify(payload);
+          } catch (_error) {
+            const text = await response.text();
+            if (text) {
+              detail = text;
+            }
+          }
+          throw new Error(detail);
+        }
+        if (response.status === 204) {
+          return null;
+        }
+        return response.json();
+      }
+
+      function humanizeStatus(value) {
+        return String(value ?? "").replaceAll("_", " ");
+      }
+
+      function formatTimestamp(value) {
+        if (!value) {
+          return "Unknown time";
+        }
+        const timestamp = new Date(value);
+        if (Number.isNaN(timestamp.getTime())) {
+          return value;
+        }
+        return timestamp.toLocaleString();
+      }
+
+      function getLeadBot() {
+        return state.agents.find((agent) => agent.type === "lead") || null;
+      }
+
+      function getSpecialists() {
+        return state.agents.filter((agent) => agent.type === "specialist");
+      }
+
+      function getAgentById(agentId) {
+        return state.agents.find((agent) => agent.id === agentId) || null;
+      }
+
+      function getWorkflowById(workflowId) {
+        return state.workflows.find((workflow) => workflow.id === workflowId) || null;
+      }
+
+      function optionMarkup(options, selectedValue, formatter = (value) => value) {
+        return options
+          .map((value) => `
+            <option value="${escapeHtml(value)}" ${value === selectedValue ? "selected" : ""}>
+              ${escapeHtml(formatter(value))}
+            </option>
+          `)
+          .join("");
+      }
+
+      function agentOptionMarkup(selectedValue, includeLead = true) {
+        const agents = includeLead ? state.agents : getSpecialists();
+        return agents
+          .map((agent) => `
+            <option value="${escapeHtml(agent.id)}" ${agent.id === selectedValue ? "selected" : ""}>
+              ${escapeHtml(agent.identity.display_name)} (${escapeHtml(agent.id)})
+            </option>
+          `)
+          .join("");
+      }
+
+      function participantDefault(agentId = null) {
+        const leadBot = getLeadBot();
+        const resolvedAgentId = agentId || leadBot?.id || "";
+        return {
+          agent_id: resolvedAgentId,
+          mode: resolvedAgentId === leadBot?.id ? "lead" : "owner",
+          responsibility:
+            resolvedAgentId === leadBot?.id
+              ? "Coordinate intake, approvals, and final delivery."
+              : "",
+          required_skills: [],
+          notes: resolvedAgentId === leadBot?.id ? "Default lead participant." : null,
+        };
+      }
+
+      function emptyAgent() {
+        return {
+          id: "",
+          type: "specialist",
+          role: "",
+          objective: "",
+          identity: {
+            display_name: "",
+            avatar: "",
+            remark: "",
+          },
+          workspace: {
+            root: "",
+            soul_path: "",
+            agents_path: "",
+            user_path: "",
+            skills_dir: "",
+            notes: "",
+          },
+          capabilities: [],
+          skills: [],
+          tool_policy: {
+            allow: [],
+            deny: [],
+            sandbox_mode: "workspace",
+            sandbox_scope: "agent",
+          },
+          bindings: [],
+          handoff_tags: [],
+          notes: "",
+          metadata: {},
+        };
+      }
+
+      function emptyWorkflow() {
+        const leadBot = getLeadBot();
+        return {
+          id: "",
+          name: "",
+          description: "",
+          trigger: "",
+          lead_agent_id: leadBot?.id || "",
+          participants: [participantDefault(leadBot?.id)],
+          steps: [
+            {
+              id: "intake",
+              name: "Operator Intake",
+              step_type: "intake",
+              owner_agent_id: leadBot?.id || "",
+              depends_on: [],
+              objective: "Capture the request, shape the flow, and dispatch the first action.",
+              instructions: "",
+              deliverables: [],
+              handoff_to: [],
+              approval_required: false,
+            },
+          ],
+          outputs: [],
+          success_criteria: [],
+          tags: [],
+        };
+      }
+
+      function renderSummary() {
+        if (!state.summary) {
+          elements.summaryGrid.innerHTML = '<div class="empty">No studio summary yet.</div>';
+          return;
+        }
+        const summary = state.summary;
+        const metrics = [
+          { label: "LeadBot", value: summary.lead_bot_id, detail: summary.studio_name },
+          { label: "Agents", value: summary.agent_count, detail: `${summary.specialist_count} specialists configured` },
+          { label: "Workflows", value: summary.workflow_count, detail: "Low-code flow orchestration active" },
+          { label: "Channels", value: summary.channels.length || "0", detail: summary.channels.join(", ") || "No bindings configured" },
+        ];
+        elements.summaryGrid.innerHTML = metrics
+          .map(
+            (metric) => `
+              <article class="metric">
+                <div class="metric-label">${escapeHtml(metric.label)}</div>
+                <div class="metric-value">${escapeHtml(metric.value)}</div>
+                <div class="metric-detail">${escapeHtml(metric.detail)}</div>
+              </article>
+            `
+          )
+          .join("");
+      }
+
+      function renderAgents() {
+        const leadBot = getLeadBot();
+        if (leadBot) {
+          elements.leadSpotlight.innerHTML = `
+            <article class="lead-card">
+              <div class="section-kicker">LeadBot Blueprint</div>
+              <h3 style="margin-top: 8px;">${escapeHtml(leadBot.identity.display_name)}</h3>
+              <div class="meta">${escapeHtml(leadBot.role)}</div>
+              <div class="pill-row" style="margin-top: 12px;">
+                <span class="pill">${escapeHtml(leadBot.coordination_style || "manager")}</span>
+                <span class="pill">${escapeHtml(leadBot.identity.remark || "Coordination surface")}</span>
+              </div>
+              <div class="meta" style="margin-top: 12px;">${escapeHtml(leadBot.objective)}</div>
+            </article>
+          `;
+        } else {
+          elements.leadSpotlight.innerHTML = '<div class="empty">LeadBot metadata unavailable.</div>';
+        }
+
+        const specialists = getSpecialists();
+        if (!specialists.length) {
+          elements.agentsList.innerHTML = '<div class="empty">No specialist agents configured.</div>';
+          return;
+        }
+
+        elements.agentsList.innerHTML = specialists
+          .map(
+            (agent) => `
+              <article class="card">
+                <div class="split">
+                  <div>
+                    <h3>${escapeHtml(agent.identity.display_name)}</h3>
+                    <div class="meta">${escapeHtml(agent.role)}</div>
+                  </div>
+                  <button class="secondary small" data-edit-agent="${escapeHtml(agent.id)}" type="button">Edit</button>
+                </div>
+                <div class="pill-row" style="margin-top: 12px;">
+                  <span class="pill">${escapeHtml(agent.workspace.root)}</span>
+                  <span class="pill">${escapeHtml((agent.skills || []).length)} skills</span>
+                  <span class="pill">${escapeHtml((agent.bindings || []).length)} bindings</span>
+                </div>
+                <div class="meta" style="margin-top: 12px;">${escapeHtml(agent.objective)}</div>
+              </article>
+            `
+          )
+          .join("");
+
+        elements.agentsList.querySelectorAll("[data-edit-agent]").forEach((button) => {
+          button.addEventListener("click", () => openAgentEditor(button.getAttribute("data-edit-agent")));
+        });
+      }
+
+      function renderWorkflows() {
+        if (!state.workflows.length) {
+          elements.workflowList.innerHTML = '<div class="empty">No workflows available.</div>';
+          elements.workflowMeta.innerHTML = '<div class="empty">Select a workflow to inspect it.</div>';
+          elements.workflowSteps.innerHTML = '<div class="empty">No step data yet.</div>';
+          return;
+        }
+
+        elements.workflowList.innerHTML = state.workflows
+          .map(
+            (workflow) => `
+              <article class="card ${workflow.id === state.selectedWorkflowId ? "active" : ""}">
+                <div class="split">
+                  <div>
+                    <h3>${escapeHtml(workflow.name)}</h3>
+                    <div class="meta">${escapeHtml(workflow.description)}</div>
+                  </div>
+                </div>
+                <div class="pill-row" style="margin-top: 12px;">
+                  ${(workflow.tags || []).map((tag) => `<span class="pill">${escapeHtml(tag)}</span>`).join("")}
+                </div>
+                <div class="button-row" style="margin-top: 14px;">
+                  <button class="secondary small" data-select-workflow="${escapeHtml(workflow.id)}" type="button">Inspect</button>
+                  <button class="ghost small" data-edit-workflow="${escapeHtml(workflow.id)}" type="button">Edit</button>
+                </div>
+              </article>
+            `
+          )
+          .join("");
+
+        const selectedPlan = state.workflowPlans.get(state.selectedWorkflowId);
+        if (!selectedPlan) {
+          elements.workflowMeta.innerHTML = '<div class="empty">Select a workflow to inspect it.</div>';
+          elements.workflowSteps.innerHTML = '<div class="empty">No step data yet.</div>';
+        } else {
+          elements.workflowMeta.innerHTML = `
+            <h3>${escapeHtml(selectedPlan.workflow_name)}</h3>
+            <div class="meta">${escapeHtml(selectedPlan.trigger)}</div>
+            <div class="pill-row" style="margin-top: 12px;">
+              <span class="pill">Lead: ${escapeHtml(selectedPlan.lead_bot.display_name)}</span>
+              <span class="pill">Approval: ${escapeHtml(selectedPlan.lead_bot.approval_mode)}</span>
+            </div>
+            <div class="meta" style="margin-top: 12px;">
+              Outputs: ${escapeHtml(selectedPlan.outputs.join(", ") || "None declared")}
+            </div>
+          `;
+
+          elements.workflowSteps.innerHTML = selectedPlan.steps
+            .map(
+              (step) => `
+                <div class="step">
+                  <div class="step-index">${escapeHtml(step.sequence)}</div>
+                  <div>
+                    <div class="step-title">${escapeHtml(step.name)}</div>
+                    <div class="step-copy">${escapeHtml(step.objective)}</div>
+                    <div class="pill-row">
+                      <span class="pill">${escapeHtml(step.owner_display_name)}</span>
+                      <span class="pill">${escapeHtml(step.type)}</span>
+                      ${step.approval_required ? '<span class="pill status-awaiting_approval">approval</span>' : ""}
+                    </div>
+                  </div>
+                  <div class="meta">${escapeHtml(step.deliverables.join(", ") || "No deliverables")}</div>
+                </div>
+              `
+            )
+            .join("");
+        }
+
+        elements.workflowList.querySelectorAll("[data-select-workflow]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await selectWorkflow(button.getAttribute("data-select-workflow"));
+          });
+        });
+        elements.workflowList.querySelectorAll("[data-edit-workflow]").forEach((button) => {
+          button.addEventListener("click", () => openWorkflowEditor(button.getAttribute("data-edit-workflow")));
+        });
+      }
+
+      function renderOpenClawExport() {
+        if (!state.exportBundle) {
+          elements.exportMeta.innerHTML = '<div class="empty">No export loaded yet.</div>';
+          elements.exportPayload.textContent = "";
+          return;
+        }
+        const exportBundle = state.exportBundle;
+        const workflowCount = (exportBundle.workflows || []).length;
+        const bindingCount = (exportBundle.bindings || []).length;
+        const agentCount = (exportBundle.agents?.list || []).length;
+        const leadBot = exportBundle.coordination?.leadBot || {};
+
+        elements.exportMeta.innerHTML = `
+          <div class="pill-row" style="margin-top: 12px;">
+            <span class="pill">${escapeHtml(agentCount)} agents</span>
+            <span class="pill">${escapeHtml(bindingCount)} bindings</span>
+            <span class="pill">${escapeHtml(workflowCount)} workflows</span>
+          </div>
+          <div class="meta" style="margin-top: 12px;">
+            LeadBot ${escapeHtml(leadBot.id || "unknown")} manages
+            ${escapeHtml((leadBot.managesAgents || []).length)} specialists with
+            ${escapeHtml(humanizeStatus(leadBot.approvalMode || "unknown"))} governance.
+          </div>
+          <div class="meta">
+            A2A allowlist: ${escapeHtml((leadBot.a2aAllow || []).join(", ") || "None")}
+          </div>
+        `;
+        elements.exportPayload.textContent = JSON.stringify(exportBundle, null, 2);
+      }
+
+      function renderRuns() {
+        if (!state.runs.length) {
+          elements.runsList.innerHTML = '<div class="empty">No runs yet. Create one from the workflow panel.</div>';
+          renderRunDetail(null, []);
+          return;
+        }
+
+        elements.runsList.innerHTML = state.runs
+          .map(
+            (run) => `
+              <button class="card ${run.run_id === state.selectedRunId ? "active" : ""}" data-run-id="${escapeHtml(run.run_id)}" type="button">
+                <div class="split">
+                  <h3>${escapeHtml(run.workflow_name)}</h3>
+                  <span class="pill status-${escapeHtml(run.status)}">${escapeHtml(humanizeStatus(run.status))}</span>
+                </div>
+                <div class="meta">${escapeHtml(run.input_summary)}</div>
+                <div class="pill-row" style="margin-top: 12px;">
+                  <span class="pill">${escapeHtml(run.operator || "unassigned")}</span>
+                  <span class="pill">${escapeHtml(formatTimestamp(run.updated_at))}</span>
+                </div>
+              </button>
+            `
+          )
+          .join("");
+
+        elements.runsList.querySelectorAll("[data-run-id]").forEach((button) => {
+          button.addEventListener("click", () => selectRun(button.getAttribute("data-run-id")));
+        });
+      }
+
+      function renderRunDetail(run, events) {
+        if (!run) {
+          elements.runMeta.innerHTML = '<div class="empty">Select a run to inspect its current state.</div>';
+          elements.eventsList.innerHTML = '<div class="empty">No events to display yet.</div>';
+          return;
+        }
+
+        const runTransitions = RUN_TRANSITIONS[run.status] || [];
+        const runIsTerminal = run.status === "completed" || run.status === "cancelled";
+
+        elements.runMeta.innerHTML = `
+          <div class="pill-row">
+            <span class="pill status-${escapeHtml(run.status)}">${escapeHtml(humanizeStatus(run.status))}</span>
+            <span class="pill">${escapeHtml(run.run_id)}</span>
+            <span class="pill">${escapeHtml(run.operator || "unassigned")}</span>
+          </div>
+          <div class="meta" style="margin-top: 12px;">${escapeHtml(run.input_summary)}</div>
+          <div class="meta">Next steps: ${escapeHtml((run.next_steps || []).join(", ") || "None")}</div>
+          <div class="meta">Blocked: ${escapeHtml((run.blocked_steps || []).join(", ") || "None")}</div>
+          <div class="meta">Approvals: ${escapeHtml((run.approval_steps || []).join(", ") || "None")}</div>
+          <div class="control-stack">
+            <div class="control-card">
+              <div class="control-title">Run Controls</div>
+              <div class="control-meta">
+                Push the workflow run through the control plane without leaving the console.
+              </div>
+              ${
+                runTransitions.length
+                  ? `
+                    <div class="inline-form" style="margin-top: 12px;">
+                      <select id="runStatusSelect" aria-label="Run status">
+                        ${runTransitions
+                          .map(
+                            (status) => `
+                              <option value="${escapeHtml(status)}">${escapeHtml(humanizeStatus(status))}</option>
+                            `
+                          )
+                          .join("")}
+                      </select>
+                      <input id="runStatusNote" type="text" placeholder="Optional run note" />
+                      <button id="applyRunStatusButton" type="button">Apply Run Status</button>
+                    </div>
+                  `
+                  : `<div class="control-meta" style="margin-top: 12px;">${runIsTerminal ? "This run is terminal and no longer accepts state changes." : "No run-level transitions are available right now."}</div>`
+              }
+            </div>
+            <div class="control-card">
+              <div class="control-title">Step Controls</div>
+              <div class="control-meta">
+                Advance specialist work one step at a time. Dependency blocking is still enforced by the backend.
+              </div>
+              ${
+                (run.step_previews || [])
+                  .map((step, index) => {
+                    const transitions = runIsTerminal ? [] : STEP_TRANSITIONS[step.status] || [];
+                    return `
+                      <div class="step">
+                        <div class="step-index">${escapeHtml(index + 1)}</div>
+                        <div>
+                          <div class="step-title">${escapeHtml(step.name)}</div>
+                          <div class="step-copy">
+                            ${escapeHtml(step.owner_display_name)} owns this step.
+                            ${step.blockers?.length ? ` Blocked by ${escapeHtml(step.blockers.join(", "))}.` : ""}
+                            ${step.notes ? ` Latest note: ${escapeHtml(step.notes)}` : ""}
+                          </div>
+                          <div class="pill-row">
+                            <span class="pill status-${escapeHtml(step.status)}">${escapeHtml(humanizeStatus(step.status))}</span>
+                            <span class="pill">${escapeHtml(step.owner_agent_id)}</span>
+                            ${step.approval_required ? '<span class="pill status-awaiting_approval">approval gate</span>' : ""}
+                          </div>
+                          ${
+                            transitions.length
+                              ? `
+                                <div class="inline-form" style="margin-top: 12px;">
+                                  <select data-step-select="${escapeHtml(step.step_id)}" aria-label="Step status">
+                                    ${transitions
+                                      .map(
+                                        (status) => `
+                                          <option value="${escapeHtml(status)}">${escapeHtml(humanizeStatus(status))}</option>
+                                        `
+                                      )
+                                      .join("")}
+                                  </select>
+                                  <input data-step-note="${escapeHtml(step.step_id)}" type="text" placeholder="Optional step note" />
+                                  <button data-step-apply="${escapeHtml(step.step_id)}" type="button">Update Step</button>
+                                </div>
+                              `
+                              : `<div class="control-meta" style="margin-top: 12px;">${runIsTerminal ? "Run is terminal, so step controls are locked." : "This step is already terminal."}</div>`
+                          }
+                        </div>
+                        <div class="meta">${escapeHtml((step.deliverables || []).join(", ") || "No deliverables")}</div>
+                      </div>
+                    `;
+                  })
+                  .join("")
+              }
+            </div>
+          </div>
+        `;
+
+        const runActionButton = document.getElementById("applyRunStatusButton");
+        if (runActionButton) {
+          runActionButton.addEventListener("click", applyRunStatus);
+        }
+        elements.runMeta.querySelectorAll("[data-step-apply]").forEach((button) => {
+          button.addEventListener("click", () => applyStepStatus(button.getAttribute("data-step-apply")));
+        });
+
+        if (!events.length) {
+          elements.eventsList.innerHTML = '<div class="empty">No audit events recorded yet.</div>';
+          return;
+        }
+
+        elements.eventsList.innerHTML = events
+          .map(
+            (event) => `
+              <div class="event">
+                <div class="event-type">${escapeHtml(event.event_type)}</div>
+                <div class="event-body">
+                  ${escapeHtml(event.target_kind)} ${escapeHtml(event.target_id || "")}
+                  ${event.from_status || event.to_status ? `• ${escapeHtml(humanizeStatus(event.from_status || "none"))} → ${escapeHtml(humanizeStatus(event.to_status || "none"))}` : ""}
+                  ${event.note ? `<br />${escapeHtml(event.note)}` : ""}
+                  ${event.actor ? `<br />Actor: ${escapeHtml(event.actor)}` : ""}
+                  <span class="timestamp">${escapeHtml(formatTimestamp(event.created_at))}</span>
+                </div>
+              </div>
+            `
+          )
+          .join("");
+      }
+
+      async function selectWorkflow(workflowId, options = {}) {
+        state.selectedWorkflowId = workflowId;
+        if (!workflowId) {
+          renderWorkflows();
+          state.runs = [];
+          state.selectedRunId = null;
+          renderRuns();
+          renderRunDetail(null, []);
+          return;
+        }
+        if (!state.workflowPlans.has(workflowId)) {
+          const plan = await fetchJson(`/studio/workflows/${workflowId}/plan`);
+          state.workflowPlans.set(workflowId, plan);
+        }
+        renderWorkflows();
+        if (options.loadRuns !== false) {
+          await loadRuns();
+        }
+      }
+
+      async function selectRun(runId) {
+        if (!runId) {
+          state.selectedRunId = null;
+          renderRuns();
+          renderRunDetail(null, []);
+          return;
+        }
+        state.selectedRunId = runId;
+        const [run, events] = await Promise.all([
+          fetchJson(`/studio/runs/${runId}`),
+          fetchJson(`/studio/runs/${runId}/events`),
+        ]);
+        renderRuns();
+        renderRunDetail(run, events);
+      }
+
+      async function loadRuns() {
+        const suffix = state.selectedWorkflowId
+          ? `?workflow_id=${encodeURIComponent(state.selectedWorkflowId)}`
+          : "";
+        state.runs = await fetchJson(`/studio/runs${suffix}`);
+        if (!state.selectedRunId && state.runs.length) {
+          state.selectedRunId = state.runs[0].run_id;
+        } else if (state.selectedRunId && !state.runs.some((run) => run.run_id === state.selectedRunId)) {
+          state.selectedRunId = state.runs[0]?.run_id || null;
+        }
+        renderRuns();
+        if (state.selectedRunId) {
+          await selectRun(state.selectedRunId);
+        } else {
+          renderRunDetail(null, []);
+        }
+      }
+
+      async function refreshAll() {
+        document.body.classList.add("loading");
+        elements.runCreateStatus.textContent = "Refreshing studio…";
+        elements.runActionStatus.textContent = "";
+        try {
+          const [summary, agents, workflows, exportBundle] = await Promise.all([
+            fetchJson("/studio/summary"),
+            fetchJson("/studio/agents"),
+            fetchJson("/studio/workflows"),
+            fetchJson("/studio/openclaw/export"),
+          ]);
+          state.summary = summary;
+          state.agents = agents;
+          state.workflows = workflows;
+          state.exportBundle = exportBundle;
+          state.workflowPlans.clear();
+          if (!state.selectedWorkflowId && workflows.length) {
+            state.selectedWorkflowId = workflows[0].id;
+          } else if (state.selectedWorkflowId && !workflows.some((item) => item.id === state.selectedWorkflowId)) {
+            state.selectedWorkflowId = workflows[0]?.id || null;
+          }
+          renderSummary();
+          renderAgents();
+          renderOpenClawExport();
+          await selectWorkflow(state.selectedWorkflowId, { loadRuns: true });
+          elements.runCreateStatus.textContent = "Studio refreshed.";
+        } catch (error) {
+          console.error(error);
+          elements.runCreateStatus.textContent = "Refresh failed. Check the console API.";
+        } finally {
+          document.body.classList.remove("loading");
+        }
+      }
+
+      async function createRun() {
+        if (!state.selectedWorkflowId) {
+          elements.runCreateStatus.textContent = "Pick a workflow first.";
+          return;
+        }
+        elements.runCreateStatus.textContent = "Creating run…";
+        try {
+          const input_summary =
+            elements.runInput.value.trim() || "Operator-triggered run from the console.";
+          const run = await fetchJson(`/studio/workflows/${state.selectedWorkflowId}/runs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operator: "console-operator", input_summary }),
+          });
+          state.selectedRunId = run.run_id;
+          elements.runInput.value = "";
+          await loadRuns();
+          elements.runCreateStatus.textContent = "Run created.";
+        } catch (error) {
+          console.error(error);
+          elements.runCreateStatus.textContent = error.message || "Run creation failed.";
+        }
+      }
+
+      async function applyRunStatus() {
+        if (!state.selectedRunId) {
+          elements.runActionStatus.textContent = "Pick a run first.";
+          return;
+        }
+        const statusSelect = document.getElementById("runStatusSelect");
+        const noteInput = document.getElementById("runStatusNote");
+        if (!statusSelect) {
+          elements.runActionStatus.textContent = "No run transition available.";
+          return;
+        }
+        elements.runActionStatus.textContent = "Updating run…";
+        try {
+          await fetchJson(`/studio/runs/${state.selectedRunId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: statusSelect.value,
+              note: noteInput?.value?.trim() || null,
+              operator: "console-operator",
+            }),
+          });
+          await loadRuns();
+          elements.runActionStatus.textContent = `Run moved to ${humanizeStatus(statusSelect.value)}.`;
+        } catch (error) {
+          console.error(error);
+          elements.runActionStatus.textContent = error.message || "Run update failed.";
+        }
+      }
+
+      async function applyStepStatus(stepId) {
+        if (!state.selectedRunId || !stepId) {
+          elements.runActionStatus.textContent = "Pick a run and step first.";
+          return;
+        }
+        const statusSelect = elements.runMeta.querySelector(`[data-step-select="${CSS.escape(stepId)}"]`);
+        const noteInput = elements.runMeta.querySelector(`[data-step-note="${CSS.escape(stepId)}"]`);
+        if (!statusSelect) {
+          elements.runActionStatus.textContent = "No step transition available.";
+          return;
+        }
+        elements.runActionStatus.textContent = `Updating step ${stepId}…`;
+        try {
+          await fetchJson(`/studio/runs/${state.selectedRunId}/steps/${stepId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: statusSelect.value,
+              note: noteInput?.value?.trim() || null,
+            }),
+          });
+          await loadRuns();
+          elements.runActionStatus.textContent = `Step ${stepId} moved to ${humanizeStatus(statusSelect.value)}.`;
+        } catch (error) {
+          console.error(error);
+          elements.runActionStatus.textContent = error.message || "Step update failed.";
+        }
+      }
+
+      function openEditor(kind, mode, sourceId = null) {
+        state.editor = { open: true, kind, mode, sourceId };
+        const item =
+          kind === "agent"
+            ? sourceId
+              ? deepClone(getAgentById(sourceId))
+              : emptyAgent()
+            : sourceId
+              ? deepClone(getWorkflowById(sourceId))
+              : emptyWorkflow();
+
+        if (kind === "agent") {
+          elements.editorTitle.textContent = mode === "create" ? "Create AgentBot" : "Edit AgentBot";
+          elements.editorSubtitle.textContent =
+            "Configure identity, workspace, skills, bindings, and tool policy through the builder drawer.";
+          elements.editorSections.innerHTML = renderAgentForm(item, mode);
+        } else {
+          elements.editorTitle.textContent = mode === "create" ? "Create Workflow" : "Edit Workflow";
+          elements.editorSubtitle.textContent =
+            "Shape participants, step ownership, dependencies, outputs, and approval gates without hand-editing JSON.";
+          elements.editorSections.innerHTML = renderWorkflowForm(item, mode);
+        }
+
+        elements.editorStatus.textContent =
+          mode === "create"
+            ? "Draft a new configuration. Save when the shape looks right."
+            : `Editing ${sourceId}. Save to update the manifest-backed configuration.`;
+        elements.editorDeleteButton.hidden = mode !== "edit";
+        elements.editorSaveButton.textContent = mode === "create" ? "Create" : "Save Changes";
+        elements.editorShell.hidden = false;
+        requestAnimationFrame(() => elements.editorShell.classList.add("open"));
+      }
+
+      function closeEditor() {
+        state.editor = { open: false, kind: null, mode: "create", sourceId: null };
+        elements.editorShell.classList.remove("open");
+        elements.editorShell.hidden = true;
+        elements.editorSections.innerHTML = "";
+        elements.editorStatus.textContent = "";
+      }
+
+      function openAgentEditor(agentId = null) {
+        openEditor("agent", agentId ? "edit" : "create", agentId);
+      }
+
+      function openWorkflowEditor(workflowId = null) {
+        openEditor("workflow", workflowId ? "edit" : "create", workflowId);
+      }
+
+      function renderSkillRow(skill = {}) {
+        return `
+          <div class="collection-item" data-row="skill">
+            <div class="collection-header">
+              <div class="collection-title">Skill</div>
+              <button class="ghost small" data-action="remove-row" type="button">Remove</button>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Slug</label>
+                <input data-field="slug" type="text" value="${escapeHtml(skill.slug || "")}" />
+              </div>
+              <div class="field">
+                <label>Name</label>
+                <input data-field="name" type="text" value="${escapeHtml(skill.name || "")}" />
+              </div>
+              <div class="field">
+                <label>Source</label>
+                <select data-field="source">
+                  ${optionMarkup(SKILL_SOURCES, skill.source || "custom")}
+                </select>
+              </div>
+              <div class="field">
+                <label>Enabled</label>
+                <select data-field="enabled">
+                  <option value="true" ${(skill.enabled ?? true) ? "selected" : ""}>Enabled</option>
+                  <option value="false" ${skill.enabled === false ? "selected" : ""}>Disabled</option>
+                </select>
+              </div>
+              <div class="field span-2">
+                <label>Purpose</label>
+                <textarea data-field="purpose">${escapeHtml(skill.purpose || "")}</textarea>
+              </div>
+              <div class="field span-2">
+                <label>Debug Notes</label>
+                <textarea data-field="debug_notes">${escapeHtml(skill.debug_notes || "")}</textarea>
+              </div>
+              <div class="field span-2">
+                <label>Config JSON</label>
+                <textarea data-field="config">${escapeHtml(JSON.stringify(skill.config || {}, null, 2))}</textarea>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderBindingRow(binding = {}) {
+        return `
+          <div class="collection-item" data-row="binding">
+            <div class="collection-header">
+              <div class="collection-title">Binding</div>
+              <button class="ghost small" data-action="remove-row" type="button">Remove</button>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Channel</label>
+                <input data-field="channel" type="text" value="${escapeHtml(binding.channel || "")}" />
+              </div>
+              <div class="field">
+                <label>Account ID</label>
+                <input data-field="account_id" type="text" value="${escapeHtml(binding.account_id || "")}" />
+              </div>
+              <div class="field">
+                <label>Guild ID</label>
+                <input data-field="guild_id" type="text" value="${escapeHtml(binding.guild_id || "")}" />
+              </div>
+              <div class="field">
+                <label>Peer Kind</label>
+                <select data-field="peer_kind">
+                  <option value="">Unset</option>
+                  ${optionMarkup(PEER_KINDS, binding.peer_kind || "")}
+                </select>
+              </div>
+              <div class="field">
+                <label>Peer ID</label>
+                <input data-field="peer_id" type="text" value="${escapeHtml(binding.peer_id || "")}" />
+              </div>
+              <div class="field">
+                <label>Topic ID</label>
+                <input data-field="topic_id" type="text" value="${escapeHtml(binding.topic_id || "")}" />
+              </div>
+              <div class="field span-2">
+                <label>Notes</label>
+                <textarea data-field="notes">${escapeHtml(binding.notes || "")}</textarea>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderParticipantRow(participant = participantDefault()) {
+        const leadBot = getLeadBot();
+        const isLocked = participant.agent_id === leadBot?.id;
+        return `
+          <div class="collection-item ${isLocked ? "locked" : ""}" data-row="participant" data-locked="${isLocked ? "true" : "false"}">
+            <div class="collection-header">
+              <div class="collection-title">${isLocked ? "Lead Participant" : "Participant"}</div>
+              <button class="ghost small" data-action="remove-row" type="button" ${isLocked ? "disabled" : ""}>Remove</button>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Agent</label>
+                <select data-field="agent_id">
+                  ${agentOptionMarkup(participant.agent_id, true)}
+                </select>
+              </div>
+              <div class="field">
+                <label>Mode</label>
+                <select data-field="mode">
+                  ${optionMarkup(PARTICIPANT_MODES, participant.mode || "owner")}
+                </select>
+              </div>
+              <div class="field span-2">
+                <label>Responsibility</label>
+                <textarea data-field="responsibility">${escapeHtml(participant.responsibility || "")}</textarea>
+              </div>
+              <div class="field">
+                <label>Required Skills</label>
+                <textarea data-field="required_skills">${escapeHtml(listToLines(participant.required_skills || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Notes</label>
+                <textarea data-field="notes">${escapeHtml(participant.notes || "")}</textarea>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderStepRow(step = {}) {
+        return `
+          <div class="collection-item" data-row="step">
+            <div class="collection-header">
+              <div class="collection-title">Workflow Step</div>
+              <button class="ghost small" data-action="remove-row" type="button">Remove</button>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label>Step ID</label>
+                <input data-field="id" type="text" value="${escapeHtml(step.id || "")}" />
+              </div>
+              <div class="field">
+                <label>Name</label>
+                <input data-field="name" type="text" value="${escapeHtml(step.name || "")}" />
+              </div>
+              <div class="field">
+                <label>Step Type</label>
+                <select data-field="step_type">
+                  ${optionMarkup(STEP_TYPES, step.step_type || "custom")}
+                </select>
+              </div>
+              <div class="field">
+                <label>Owner Agent</label>
+                <select data-field="owner_agent_id">
+                  ${agentOptionMarkup(step.owner_agent_id || "", true)}
+                </select>
+              </div>
+              <div class="field span-2">
+                <label>Objective</label>
+                <textarea data-field="objective">${escapeHtml(step.objective || "")}</textarea>
+              </div>
+              <div class="field span-2">
+                <label>Instructions</label>
+                <textarea data-field="instructions">${escapeHtml(step.instructions || "")}</textarea>
+              </div>
+              <div class="field">
+                <label>Depends On</label>
+                <textarea data-field="depends_on">${escapeHtml(listToLines(step.depends_on || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Deliverables</label>
+                <textarea data-field="deliverables">${escapeHtml(listToLines(step.deliverables || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Handoff To</label>
+                <textarea data-field="handoff_to">${escapeHtml(listToLines(step.handoff_to || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Approval Required</label>
+                <select data-field="approval_required">
+                  <option value="false" ${step.approval_required ? "" : "selected"}>No</option>
+                  <option value="true" ${step.approval_required ? "selected" : ""}>Yes</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderAgentForm(agent, mode) {
+        return `
+          <div class="section">
+            <h3>Identity</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Agent ID</label>
+                <input name="id" type="text" value="${escapeHtml(agent.id || "")}" ${mode === "edit" ? "readonly" : ""} />
+              </div>
+              <div class="field">
+                <label>Display Name</label>
+                <input name="display_name" type="text" value="${escapeHtml(agent.identity?.display_name || "")}" />
+              </div>
+              <div class="field">
+                <label>Role</label>
+                <input name="role" type="text" value="${escapeHtml(agent.role || "")}" />
+              </div>
+              <div class="field">
+                <label>Avatar URL</label>
+                <input name="avatar" type="text" value="${escapeHtml(agent.identity?.avatar || "")}" />
+              </div>
+              <div class="field span-2">
+                <label>Objective</label>
+                <textarea name="objective">${escapeHtml(agent.objective || "")}</textarea>
+              </div>
+              <div class="field span-2">
+                <label>Remark</label>
+                <textarea name="remark">${escapeHtml(agent.identity?.remark || "")}</textarea>
+              </div>
+              <div class="field span-2">
+                <label>Notes</label>
+                <textarea name="notes">${escapeHtml(agent.notes || "")}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Workspace</h3>
+            <div class="field-grid">
+              <div class="field span-2">
+                <label>Workspace Root</label>
+                <input name="workspace_root" type="text" value="${escapeHtml(agent.workspace?.root || "")}" />
+              </div>
+              <div class="field">
+                <label>SOUL.md Path</label>
+                <input name="soul_path" type="text" value="${escapeHtml(agent.workspace?.soul_path || "")}" />
+              </div>
+              <div class="field">
+                <label>AGENTS.md Path</label>
+                <input name="agents_path" type="text" value="${escapeHtml(agent.workspace?.agents_path || "")}" />
+              </div>
+              <div class="field">
+                <label>USER.md Path</label>
+                <input name="user_path" type="text" value="${escapeHtml(agent.workspace?.user_path || "")}" />
+              </div>
+              <div class="field">
+                <label>Skills Dir</label>
+                <input name="skills_dir" type="text" value="${escapeHtml(agent.workspace?.skills_dir || "")}" />
+              </div>
+              <div class="field span-2">
+                <label>Workspace Notes</label>
+                <textarea name="workspace_notes">${escapeHtml(agent.workspace?.notes || "")}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Capabilities & Tooling</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Capabilities</label>
+                <textarea name="capabilities">${escapeHtml(listToLines(agent.capabilities || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Handoff Tags</label>
+                <textarea name="handoff_tags">${escapeHtml(listToLines(agent.handoff_tags || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Allow Tools</label>
+                <textarea name="tools_allow">${escapeHtml(listToLines(agent.tool_policy?.allow || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Deny Tools</label>
+                <textarea name="tools_deny">${escapeHtml(listToLines(agent.tool_policy?.deny || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Sandbox Mode</label>
+                <select name="sandbox_mode">
+                  ${optionMarkup(SANDBOX_MODES, agent.tool_policy?.sandbox_mode || "workspace")}
+                </select>
+              </div>
+              <div class="field">
+                <label>Sandbox Scope</label>
+                <select name="sandbox_scope">
+                  ${optionMarkup(SANDBOX_SCOPES, agent.tool_policy?.sandbox_scope || "agent")}
+                </select>
+              </div>
+              <div class="field span-2">
+                <label>Metadata</label>
+                <textarea name="metadata">${escapeHtml(formatKeyValueLines(agent.metadata || {}))}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="collection-header">
+              <h3>Skills</h3>
+              <button class="secondary small" data-action="add-skill" type="button">Add Skill</button>
+            </div>
+            <div id="skillsCollection" class="collection">
+              ${(agent.skills || []).map((skill) => renderSkillRow(skill)).join("") || '<div class="empty">No skills yet. Add one from the builder.</div>'}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="collection-header">
+              <h3>Bindings</h3>
+              <button class="secondary small" data-action="add-binding" type="button">Add Binding</button>
+            </div>
+            <div id="bindingsCollection" class="collection">
+              ${(agent.bindings || []).map((binding) => renderBindingRow(binding)).join("") || '<div class="empty">No bindings yet. Add one from the builder.</div>'}
+            </div>
+          </div>
+        `;
+      }
+
+      function renderWorkflowForm(workflow, mode) {
+        return `
+          <div class="section">
+            <h3>Workflow Definition</h3>
+            <div class="field-grid">
+              <div class="field">
+                <label>Workflow ID</label>
+                <input name="id" type="text" value="${escapeHtml(workflow.id || "")}" ${mode === "edit" ? "readonly" : ""} />
+              </div>
+              <div class="field">
+                <label>Name</label>
+                <input name="name" type="text" value="${escapeHtml(workflow.name || "")}" />
+              </div>
+              <div class="field span-2">
+                <label>Description</label>
+                <textarea name="description">${escapeHtml(workflow.description || "")}</textarea>
+              </div>
+              <div class="field span-2">
+                <label>Trigger</label>
+                <textarea name="trigger">${escapeHtml(workflow.trigger || "")}</textarea>
+              </div>
+              <div class="field">
+                <label>Outputs</label>
+                <textarea name="outputs">${escapeHtml(listToLines(workflow.outputs || []))}</textarea>
+              </div>
+              <div class="field">
+                <label>Success Criteria</label>
+                <textarea name="success_criteria">${escapeHtml(listToLines(workflow.success_criteria || []))}</textarea>
+              </div>
+              <div class="field span-2">
+                <label>Tags</label>
+                <textarea name="tags">${escapeHtml(listToLines(workflow.tags || []))}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="collection-header">
+              <h3>Participants</h3>
+              <button class="secondary small" data-action="add-participant" type="button">Add Participant</button>
+            </div>
+            <div id="participantsCollection" class="collection">
+              ${(workflow.participants || []).map((participant) => renderParticipantRow(participant)).join("")}
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="collection-header">
+              <h3>Steps</h3>
+              <button class="secondary small" data-action="add-step" type="button">Add Step</button>
+            </div>
+            <div id="stepsCollection" class="collection">
+              ${(workflow.steps || []).map((step) => renderStepRow(step)).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      function ensureCollectionEmptyState(collection) {
+        if (!collection) {
+          return;
+        }
+        const hasRows = collection.querySelector(".collection-item");
+        let emptyNode = collection.querySelector(".empty");
+        if (!hasRows && !emptyNode) {
+          emptyNode = document.createElement("div");
+          emptyNode.className = "empty";
+          emptyNode.textContent = "This section is empty. Add an item to continue.";
+          collection.append(emptyNode);
+        }
+        if (hasRows && emptyNode) {
+          emptyNode.remove();
+        }
+      }
+
+      function handleEditorCollectionAction(action, trigger) {
+        if (action === "remove-row") {
+          const row = trigger.closest(".collection-item");
+          row?.remove();
+          ensureCollectionEmptyState(row?.parentElement);
+          return;
+        }
+
+        if (action === "add-skill") {
+          const collection = document.getElementById("skillsCollection");
+          collection.insertAdjacentHTML("beforeend", renderSkillRow());
+          ensureCollectionEmptyState(collection);
+          return;
+        }
+
+        if (action === "add-binding") {
+          const collection = document.getElementById("bindingsCollection");
+          collection.insertAdjacentHTML("beforeend", renderBindingRow());
+          ensureCollectionEmptyState(collection);
+          return;
+        }
+
+        if (action === "add-participant") {
+          const collection = document.getElementById("participantsCollection");
+          collection.insertAdjacentHTML("beforeend", renderParticipantRow(participantDefault("")));
+          ensureCollectionEmptyState(collection);
+          return;
+        }
+
+        if (action === "add-step") {
+          const leadBot = getLeadBot();
+          const collection = document.getElementById("stepsCollection");
+          collection.insertAdjacentHTML(
+            "beforeend",
+            renderStepRow({
+              id: "",
+              name: "",
+              step_type: "custom",
+              owner_agent_id: leadBot?.id || "",
+              depends_on: [],
+              objective: "",
+              instructions: "",
+              deliverables: [],
+              handoff_to: [],
+              approval_required: false,
+            })
+          );
+          ensureCollectionEmptyState(collection);
+        }
+      }
+
+      function readAgentForm() {
+        const form = elements.editorForm;
+        const skills = Array.from(form.querySelectorAll('[data-row="skill"]'))
+          .map((row, index) => {
+            const slug = row.querySelector('[data-field="slug"]').value.trim();
+            const name = row.querySelector('[data-field="name"]').value.trim();
+            const purpose = row.querySelector('[data-field="purpose"]').value.trim();
+            if (!slug && !name && !purpose) {
+              return null;
+            }
+            return {
+              slug,
+              name,
+              source: row.querySelector('[data-field="source"]').value,
+              enabled: row.querySelector('[data-field="enabled"]').value === "true",
+              purpose,
+              debug_notes: nullable(row.querySelector('[data-field="debug_notes"]').value),
+              config: parseJsonObject(row.querySelector('[data-field="config"]').value, `Skill ${index + 1} config`),
+            };
+          })
+          .filter(Boolean);
+
+        const bindings = Array.from(form.querySelectorAll('[data-row="binding"]'))
+          .map((row) => {
+            const channel = row.querySelector('[data-field="channel"]').value.trim();
+            const peerId = row.querySelector('[data-field="peer_id"]').value.trim();
+            if (!channel && !peerId) {
+              return null;
+            }
+            return {
+              channel,
+              account_id: nullable(row.querySelector('[data-field="account_id"]').value),
+              guild_id: nullable(row.querySelector('[data-field="guild_id"]').value),
+              peer_kind: nullable(row.querySelector('[data-field="peer_kind"]').value),
+              peer_id: nullable(row.querySelector('[data-field="peer_id"]').value),
+              topic_id: nullable(row.querySelector('[data-field="topic_id"]').value),
+              notes: nullable(row.querySelector('[data-field="notes"]').value),
+            };
+          })
+          .filter(Boolean);
+
+        return {
+          id: form.querySelector('[name="id"]').value.trim(),
+          type: "specialist",
+          role: form.querySelector('[name="role"]').value.trim(),
+          objective: form.querySelector('[name="objective"]').value.trim(),
+          identity: {
+            display_name: form.querySelector('[name="display_name"]').value.trim(),
+            avatar: nullable(form.querySelector('[name="avatar"]').value),
+            remark: nullable(form.querySelector('[name="remark"]').value),
+          },
+          workspace: {
+            root: form.querySelector('[name="workspace_root"]').value.trim(),
+            soul_path: nullable(form.querySelector('[name="soul_path"]').value),
+            agents_path: nullable(form.querySelector('[name="agents_path"]').value),
+            user_path: nullable(form.querySelector('[name="user_path"]').value),
+            skills_dir: nullable(form.querySelector('[name="skills_dir"]').value),
+            notes: nullable(form.querySelector('[name="workspace_notes"]').value),
+          },
+          capabilities: splitTokens(form.querySelector('[name="capabilities"]').value),
+          skills,
+          tool_policy: {
+            allow: splitTokens(form.querySelector('[name="tools_allow"]').value),
+            deny: splitTokens(form.querySelector('[name="tools_deny"]').value),
+            sandbox_mode: form.querySelector('[name="sandbox_mode"]').value,
+            sandbox_scope: form.querySelector('[name="sandbox_scope"]').value,
+          },
+          bindings,
+          handoff_tags: splitTokens(form.querySelector('[name="handoff_tags"]').value),
+          notes: nullable(form.querySelector('[name="notes"]').value),
+          metadata: parseKeyValueLines(form.querySelector('[name="metadata"]').value),
+        };
+      }
+
+      function readWorkflowForm() {
+        const form = elements.editorForm;
+        const leadBot = getLeadBot();
+        const participantMap = new Map();
+
+        Array.from(form.querySelectorAll('[data-row="participant"]')).forEach((row) => {
+          const agentId = row.querySelector('[data-field="agent_id"]').value.trim();
+          if (!agentId) {
+            return;
+          }
+          participantMap.set(agentId, {
+            agent_id: agentId,
+            mode: row.querySelector('[data-field="mode"]').value,
+            responsibility: row.querySelector('[data-field="responsibility"]').value.trim(),
+            required_skills: splitTokens(row.querySelector('[data-field="required_skills"]').value),
+            notes: nullable(row.querySelector('[data-field="notes"]').value),
+          });
+        });
+
+        if (leadBot && !participantMap.has(leadBot.id)) {
+          participantMap.set(leadBot.id, participantDefault(leadBot.id));
+        }
+
+        const steps = Array.from(form.querySelectorAll('[data-row="step"]'))
+          .map((row) => {
+            const stepId = row.querySelector('[data-field="id"]').value.trim();
+            const objective = row.querySelector('[data-field="objective"]').value.trim();
+            const ownerAgentId = row.querySelector('[data-field="owner_agent_id"]').value.trim();
+            if (!stepId && !objective && !ownerAgentId) {
+              return null;
+            }
+            return {
+              id: stepId,
+              name: row.querySelector('[data-field="name"]').value.trim(),
+              step_type: row.querySelector('[data-field="step_type"]').value,
+              owner_agent_id: ownerAgentId,
+              depends_on: splitTokens(row.querySelector('[data-field="depends_on"]').value),
+              objective,
+              instructions: nullable(row.querySelector('[data-field="instructions"]').value),
+              deliverables: splitTokens(row.querySelector('[data-field="deliverables"]').value),
+              handoff_to: splitTokens(row.querySelector('[data-field="handoff_to"]').value),
+              approval_required: row.querySelector('[data-field="approval_required"]').value === "true",
+            };
+          })
+          .filter(Boolean);
+
+        return {
+          id: form.querySelector('[name="id"]').value.trim(),
+          name: form.querySelector('[name="name"]').value.trim(),
+          description: form.querySelector('[name="description"]').value.trim(),
+          trigger: form.querySelector('[name="trigger"]').value.trim(),
+          lead_agent_id: leadBot?.id || state.summary?.lead_bot_id || "",
+          participants: Array.from(participantMap.values()),
+          steps,
+          outputs: splitTokens(form.querySelector('[name="outputs"]').value),
+          success_criteria: splitTokens(form.querySelector('[name="success_criteria"]').value),
+          tags: splitTokens(form.querySelector('[name="tags"]').value),
+        };
+      }
+
+      function validateAgentPayload(payload) {
+        if (!payload.id) {
+          throw new Error("Agent ID is required.");
+        }
+        if (!payload.identity.display_name) {
+          throw new Error("Display name is required.");
+        }
+        if (!payload.role) {
+          throw new Error("Role is required.");
+        }
+        if (!payload.objective) {
+          throw new Error("Objective is required.");
+        }
+        if (!payload.workspace.root) {
+          throw new Error("Workspace root is required.");
+        }
+      }
+
+      function validateWorkflowPayload(payload) {
+        if (!payload.id) {
+          throw new Error("Workflow ID is required.");
+        }
+        if (!payload.name) {
+          throw new Error("Workflow name is required.");
+        }
+        if (!payload.description) {
+          throw new Error("Workflow description is required.");
+        }
+        if (!payload.trigger) {
+          throw new Error("Workflow trigger is required.");
+        }
+        if (!payload.participants.length) {
+          throw new Error("At least one participant is required.");
+        }
+        if (!payload.steps.length) {
+          throw new Error("At least one workflow step is required.");
+        }
+      }
+
+      async function saveEditor() {
+        if (!state.editor.kind) {
+          return;
+        }
+        elements.editorStatus.textContent = "Saving configuration…";
+        try {
+          if (state.editor.kind === "agent") {
+            const payload = readAgentForm();
+            validateAgentPayload(payload);
+            if (state.editor.mode === "create") {
+              await fetchJson("/studio/agents", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+            } else {
+              await fetchJson(`/studio/agents/${state.editor.sourceId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+            }
+          } else {
+            const payload = readWorkflowForm();
+            validateWorkflowPayload(payload);
+            if (state.editor.mode === "create") {
+              await fetchJson("/studio/workflows", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              state.selectedWorkflowId = payload.id;
+            } else {
+              await fetchJson(`/studio/workflows/${state.editor.sourceId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+              });
+              state.selectedWorkflowId = payload.id;
+            }
+          }
+          elements.editorStatus.textContent = "Saved. Refreshing studio state…";
+          closeEditor();
+          await refreshAll();
+        } catch (error) {
+          console.error(error);
+          elements.editorStatus.textContent = error.message || "Save failed.";
+        }
+      }
+
+      async function deleteEditorEntity() {
+        if (state.editor.mode !== "edit" || !state.editor.kind || !state.editor.sourceId) {
+          return;
+        }
+        const label = `${state.editor.kind} ${state.editor.sourceId}`;
+        if (!window.confirm(`Delete ${label}? This cannot be undone.`)) {
+          return;
+        }
+        elements.editorStatus.textContent = `Deleting ${label}…`;
+        try {
+          if (state.editor.kind === "agent") {
+            await fetchJson(`/studio/agents/${state.editor.sourceId}`, {
+              method: "DELETE",
+            });
+          } else {
+            await fetchJson(`/studio/workflows/${state.editor.sourceId}`, {
+              method: "DELETE",
+            });
+            if (state.selectedWorkflowId === state.editor.sourceId) {
+              state.selectedWorkflowId = null;
+            }
+          }
+          closeEditor();
+          await refreshAll();
+        } catch (error) {
+          console.error(error);
+          elements.editorStatus.textContent = error.message || "Delete failed.";
+        }
+      }
+
+      elements.editorSections.addEventListener("click", (event) => {
+        const trigger = event.target.closest("[data-action]");
+        if (!trigger) {
+          return;
+        }
+        const action = trigger.getAttribute("data-action");
+        if (action === "close-editor") {
+          closeEditor();
+          return;
+        }
+        handleEditorCollectionAction(action, trigger);
+      });
+
+      elements.editorShell.addEventListener("click", (event) => {
+        const trigger = event.target.closest("[data-action='close-editor']");
+        if (trigger) {
+          closeEditor();
+        }
+      });
+
+      elements.refreshButton.addEventListener("click", refreshAll);
+      elements.newAgentButton.addEventListener("click", () => openAgentEditor());
+      elements.newAgentButtonInline.addEventListener("click", () => openAgentEditor());
+      elements.newWorkflowButton.addEventListener("click", () => openWorkflowEditor());
+      elements.newWorkflowButtonInline.addEventListener("click", () => openWorkflowEditor());
+      elements.createRunButton.addEventListener("click", createRun);
+      elements.openDocsButton.addEventListener("click", () => {
+        window.open("/docs", "_blank", "noopener,noreferrer");
+      });
+      elements.copyExportButton.addEventListener("click", async () => {
+        if (!state.exportBundle) {
+          elements.runActionStatus.textContent = "Refresh the studio before copying export JSON.";
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(state.exportBundle, null, 2));
+          elements.runActionStatus.textContent = "OpenClaw export copied.";
+        } catch (error) {
+          console.error(error);
+          elements.runActionStatus.textContent = "Clipboard copy failed.";
+        }
+      });
+      elements.editorSaveButton.addEventListener("click", saveEditor);
+      elements.editorDeleteButton.addEventListener("click", deleteEditorEntity);
+
+      refreshAll();
+    </script>
+  </body>
+</html>

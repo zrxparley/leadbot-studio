@@ -68,6 +68,7 @@ LeadBot 是控制平面，不是网关替代品。
 - workflow plan 编译器
 - workflow dry-run、运行记录持久化、状态流转
 - operator console，可直接发起 run 并推进 run / step 状态
+- 低代码 builder console，可通过 Web UI 创建、编辑、删除 AgentBot / Workflow
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
 - 一个可直接 fork 的默认工作室模板
