@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from html import unescape
 from xml.etree import ElementTree
@@ -50,11 +50,11 @@ class RSSNewsConnector:
     @staticmethod
     def _parse_published_at(value: str | None) -> datetime:
         if not value:
-            return datetime.utcnow()
+            return datetime.now(UTC).replace(tzinfo=None)
         try:
             return parsedate_to_datetime(value).replace(tzinfo=None)
         except (TypeError, ValueError, IndexError):
-            return datetime.utcnow()
+            return datetime.now(UTC).replace(tzinfo=None)
 
     @staticmethod
     def _strip_html(value: str | None) -> str:
@@ -66,4 +66,3 @@ class RSSNewsConnector:
     @staticmethod
     def _text(value: str | None) -> str:
         return (value or "").strip()
-

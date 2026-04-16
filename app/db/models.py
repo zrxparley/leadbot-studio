@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
+import json
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import DateTime, Float, Integer, String, Text
@@ -11,10 +12,14 @@ class Base(DeclarativeBase):
     pass
 
 
+def utc_now() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
 class TimestampMixin:
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
 
@@ -39,7 +44,7 @@ class MaterialPrice(Base, TimestampMixin):
     price: Mapped[float] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(10))
     unit: Mapped[str] = mapped_column(String(30))
-    captured_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    captured_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -61,7 +66,7 @@ class NewsItem(Base, TimestampMixin):
     source_name: Mapped[str] = mapped_column(String(120))
     title: Mapped[str] = mapped_column(String(300))
     url: Mapped[str] = mapped_column(String(500), unique=True)
-    published_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    published_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     summary: Mapped[str] = mapped_column(Text)
     content_hash: Mapped[str] = mapped_column(String(64), unique=True)
     tags: Mapped[str] = mapped_column(String(255))
@@ -102,7 +107,7 @@ class Lead(Base, TimestampMixin):
     score: Mapped[float] = mapped_column(Float, default=0)
     score_reason: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(40), default="new")
-    discovered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    discovered_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -136,7 +141,7 @@ class Report(Base, TimestampMixin):
     period_end: Mapped[datetime] = mapped_column(DateTime)
     content_markdown: Mapped[str] = mapped_column(Text)
     content_html: Mapped[str] = mapped_column(Text)
-    generated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    generated_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     delivery_status: Mapped[str] = mapped_column(String(40), default="pending")
 
     def to_dict(self) -> dict[str, Any]:
@@ -155,8 +160,49 @@ class TaskRun(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     job_name: Mapped[str] = mapped_column(String(120))
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     status: Mapped[str] = mapped_column(String(40), default="running")
     items_processed: Mapped[int] = mapped_column(Integer, default=0)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class WorkflowRunRecord(Base, TimestampMixin):
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    workflow_id: Mapped[str] = mapped_column(String(120), index=True)
+    workflow_name: Mapped[str] = mapped_column(String(255))
+    lead_agent_id: Mapped[str] = mapped_column(String(120))
+    mode: Mapped[str] = mapped_column(String(40), default="dry_run")
+    operator: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="previewed")
+    input_summary: Mapped[str] = mapped_column(Text)
+    requested_outputs_json: Mapped[str] = mapped_column(Text, default="[]")
+    next_steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    blocked_steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    approval_steps_json: Mapped[str] = mapped_column(Text, default="[]")
+    step_previews_json: Mapped[str] = mapped_column(Text, default="[]")
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "run_id": self.run_id,
+            "workflow_id": self.workflow_id,
+            "workflow_name": self.workflow_name,
+            "lead_agent_id": self.lead_agent_id,
+            "mode": self.mode,
+            "operator": self.operator,
+            "status": self.status,
+            "input_summary": self.input_summary,
+            "requested_outputs": json.loads(self.requested_outputs_json),
+            "next_steps": json.loads(self.next_steps_json),
+            "blocked_steps": json.loads(self.blocked_steps_json),
+            "approval_steps": json.loads(self.approval_steps_json),
+            "step_previews": json.loads(self.step_previews_json),
+            "metadata": json.loads(self.metadata_json),
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }

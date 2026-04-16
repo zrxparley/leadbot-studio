@@ -66,6 +66,7 @@ LeadBot 是控制平面，不是网关替代品。
 - `StudioManifest` 配置模型
 - `LeadBot` / `AgentBot` / `Workflow` 领域模型
 - workflow plan 编译器
+- workflow dry-run 与运行记录持久化
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
 - 一个可直接 fork 的默认工作室模板
@@ -80,6 +81,10 @@ LeadBot 是控制平面，不是网关替代品。
 - `GET /studio/agents`
 - `GET /studio/workflows`
 - `GET /studio/workflows/{workflow_id}/plan`
+- `POST /studio/workflows/{workflow_id}/dry-run`
+- `POST /studio/workflows/{workflow_id}/runs`
+- `GET /studio/runs`
+- `GET /studio/runs/{run_id}`
 - `GET /studio/openclaw/export`
 
 保留的示例业务接口：

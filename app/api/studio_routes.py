@@ -1,6 +1,9 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
 
+from app.db.session import get_db
 from app.studio.schemas import AgentBot, StudioManifest, WorkflowDefinition, WorkflowRunRequest
+from app.studio.runtime import WorkflowRunNotFoundError, WorkflowRunService
 from app.studio.service import (
     AgentNotFoundError,
     EntityConflictError,
@@ -123,6 +126,34 @@ def create_workflow_dry_run(workflow_id: str, request: WorkflowRunRequest) -> di
         return studio_service.create_workflow_dry_run(workflow_id, request).model_dump(mode="json")
     except WorkflowNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
+
+
+@router.post("/workflows/{workflow_id}/runs")
+def create_workflow_run(
+    workflow_id: str,
+    request: WorkflowRunRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        return WorkflowRunService(db, studio_service).create_run(workflow_id, request)
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
+
+
+@router.get("/runs")
+def list_workflow_runs(
+    workflow_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return WorkflowRunService(db, studio_service).list_runs(workflow_id=workflow_id)
+
+
+@router.get("/runs/{run_id}")
+def get_workflow_run(run_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        return WorkflowRunService(db, studio_service).get_run(run_id)
+    except WorkflowRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow run: {exc}") from exc
 
 
 @router.get("/openclaw/export")
