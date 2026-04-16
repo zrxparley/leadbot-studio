@@ -647,6 +647,38 @@
           rgba(255, 255, 255, 0.68);
       }
 
+      .collection-item.dragging {
+        opacity: 0.42;
+        border-style: dashed;
+        border-color: rgba(180, 82, 52, 0.46);
+      }
+
+      .template-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .template-card {
+        padding: 14px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(135deg, rgba(37, 94, 105, 0.09), rgba(255, 255, 255, 0.92)),
+          rgba(255, 255, 255, 0.74);
+      }
+
+      .template-card h4 {
+        font-size: 1rem;
+      }
+
+      .template-card p {
+        margin: 8px 0 12px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        line-height: 1.55;
+      }
+
       .collection-header {
         display: flex;
         align-items: center;
@@ -659,6 +691,142 @@
         font-size: 0.96rem;
       }
 
+      .collection-tools {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .workflow-composer {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+        gap: 14px;
+      }
+
+      .graph-shell {
+        padding: 16px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background:
+          radial-gradient(circle at top right, rgba(180, 82, 52, 0.12), transparent 28%),
+          linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(248, 241, 230, 0.92));
+      }
+
+      .graph-stats {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .graph-stat {
+        padding: 12px;
+        border-radius: 16px;
+        border: 1px solid rgba(23, 19, 16, 0.08);
+        background: rgba(255, 255, 255, 0.78);
+      }
+
+      .graph-stat strong {
+        display: block;
+        font-size: 1.15rem;
+      }
+
+      .graph-canvas {
+        min-height: 280px;
+        border-radius: 18px;
+        border: 1px dashed rgba(23, 19, 16, 0.18);
+        background:
+          linear-gradient(rgba(23, 19, 16, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(23, 19, 16, 0.03) 1px, transparent 1px),
+          rgba(255, 255, 255, 0.7);
+        background-size: 26px 26px;
+        overflow: auto;
+      }
+
+      .graph-canvas svg {
+        display: block;
+        min-width: 100%;
+      }
+
+      .graph-aside {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .dependency-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .dependency-item {
+        padding: 12px;
+        border-radius: 16px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.74);
+      }
+
+      .dependency-item.invalid {
+        border-color: rgba(159, 55, 50, 0.24);
+        background: rgba(159, 55, 50, 0.08);
+      }
+
+      .step-card-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .step-card-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .drag-handle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: rgba(23, 19, 16, 0.06);
+        color: var(--muted);
+        font-size: 0.9rem;
+        cursor: grab;
+      }
+
+      .drag-handle:active {
+        cursor: grabbing;
+      }
+
+      .step-tools {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .helper-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .helper-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: end;
+      }
+
+      .helper-bar .field {
+        flex: 1 1 220px;
+      }
+
       .loading {
         opacity: 0.64;
       }
@@ -666,7 +834,8 @@
       @media (max-width: 1240px) {
         .hero,
         .layout,
-        .detail-grid {
+        .detail-grid,
+        .workflow-composer {
           grid-template-columns: 1fr;
         }
       }
@@ -674,7 +843,9 @@
       @media (max-width: 880px) {
         .field-grid,
         .summary-grid,
-        .prelude {
+        .prelude,
+        .template-grid,
+        .graph-stats {
           grid-template-columns: 1fr;
         }
 
@@ -923,6 +1094,124 @@
       const PEER_KINDS = ["dm", "group", "topic", "channel"];
       const PARTICIPANT_MODES = ["lead", "owner", "support", "reviewer", "observer"];
       const STEP_TYPES = ["intake", "research", "design", "build", "review", "qa", "publish", "ops", "custom"];
+      const AGENT_TEMPLATES = {
+        researcher: {
+          label: "Researcher",
+          display_name: "ResearchBot",
+          role: "Research Specialist",
+          objective: "Find signal fast, validate assumptions, and hand clean briefs to the rest of the studio.",
+          remark: "Research-first specialist for discovery, briefs, and source gathering.",
+          workspace_note: "Optimized for search, synthesis, and briefing handoff.",
+          capabilities: ["research", "briefing", "source validation", "trend mapping"],
+          handoff_tags: ["research", "brief", "handoff-ready"],
+          notes: "Template tuned for discovery and briefing work.",
+          metadata: { template: "researcher" },
+          tool_policy: {
+            allow: ["web.search", "docs.read", "files.write"],
+            deny: ["deploy", "publish"],
+            sandbox_mode: "workspace",
+            sandbox_scope: "agent",
+          },
+          skills: [
+            {
+              slug: "deep-research",
+              name: "Deep Research",
+              source: "custom",
+              enabled: true,
+              purpose: "Gather, rank, and synthesize source material into operator-ready research briefs.",
+              debug_notes: "Check source quality before passing insights downstream.",
+              config: {},
+            },
+          ],
+        },
+        builder: {
+          label: "Developer",
+          display_name: "DevBot",
+          role: "Development Specialist",
+          objective: "Turn plans into shippable implementation slices with clear handoffs and minimal drift.",
+          remark: "Execution-focused specialist for implementation and delivery.",
+          workspace_note: "Optimized for implementation loops, patching, and validation.",
+          capabilities: ["implementation", "refactor", "integration", "delivery"],
+          handoff_tags: ["build", "implementation", "ready-for-review"],
+          notes: "Template tuned for software execution and structured delivery.",
+          metadata: { template: "builder" },
+          tool_policy: {
+            allow: ["files.write", "terminal.exec", "tests.run"],
+            deny: ["prod.deploy"],
+            sandbox_mode: "workspace",
+            sandbox_scope: "agent",
+          },
+          skills: [
+            {
+              slug: "implementation",
+              name: "Implementation Engine",
+              source: "custom",
+              enabled: true,
+              purpose: "Ship implementation slices with tests and structured handoff notes.",
+              debug_notes: "Keep scope bounded and pair each change with verification.",
+              config: {},
+            },
+          ],
+        },
+        qa: {
+          label: "QA",
+          display_name: "QABot",
+          role: "Quality Specialist",
+          objective: "Pressure-test outputs, catch regressions, and keep the studio honest before publish.",
+          remark: "Verification and release readiness specialist.",
+          workspace_note: "Optimized for smoke tests, review loops, and release gates.",
+          capabilities: ["qa", "regression testing", "release checks", "review"],
+          handoff_tags: ["qa", "review", "release-gate"],
+          notes: "Template tuned for review, test coverage, and gatekeeping.",
+          metadata: { template: "qa" },
+          tool_policy: {
+            allow: ["tests.run", "files.read", "terminal.exec"],
+            deny: ["publish", "prod.deploy"],
+            sandbox_mode: "workspace",
+            sandbox_scope: "agent",
+          },
+          skills: [
+            {
+              slug: "release-check",
+              name: "Release Check",
+              source: "custom",
+              enabled: true,
+              purpose: "Verify workflows against acceptance criteria and surface operator-facing risk notes.",
+              debug_notes: "Flag residual risk instead of silently accepting ambiguity.",
+              config: {},
+            },
+          ],
+        },
+        publisher: {
+          label: "Publisher",
+          display_name: "PublishBot",
+          role: "Publishing Specialist",
+          objective: "Package approved work, adapt it to delivery channels, and complete the final outward handoff.",
+          remark: "Distribution and final packaging specialist.",
+          workspace_note: "Optimized for release formatting, packaging, and outbound coordination.",
+          capabilities: ["publishing", "packaging", "distribution", "operator handoff"],
+          handoff_tags: ["publish", "distribution", "done"],
+          notes: "Template tuned for last-mile delivery and channel adaptation.",
+          metadata: { template: "publisher" },
+          tool_policy: {
+            allow: ["files.write", "docs.read", "terminal.exec"],
+            deny: ["schema.migrate"],
+            sandbox_mode: "workspace",
+            sandbox_scope: "agent",
+          },
+          skills: [
+            {
+              slug: "delivery-packaging",
+              name: "Delivery Packaging",
+              source: "custom",
+              enabled: true,
+              purpose: "Prepare final deliverables for outbound channels and operator sign-off.",
+              debug_notes: "Confirm approvals before packaging outward-facing assets.",
+              config: {},
+            },
+          ],
+        },
+      };
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1141,6 +1430,21 @@
           outputs: [],
           success_criteria: [],
           tags: [],
+        };
+      }
+
+      function workspaceRootForAgent(agentId) {
+        return agentId ? `~/.openclaw/workspace-${agentId}` : "";
+      }
+
+      function workspacePathsForAgent(agentId) {
+        const root = workspaceRootForAgent(agentId);
+        return {
+          root,
+          soul_path: root ? `${root}/SOUL.md` : "",
+          agents_path: root ? `${root}/AGENTS.md` : "",
+          user_path: root ? `${root}/USER.md` : "",
+          skills_dir: root ? `${root}/skills` : "",
         };
       }
 
@@ -1692,6 +1996,9 @@
         elements.editorSaveButton.textContent = mode === "create" ? "Create" : "Save Changes";
         elements.editorShell.hidden = false;
         requestAnimationFrame(() => elements.editorShell.classList.add("open"));
+        if (kind === "workflow") {
+          syncWorkflowBuilder();
+        }
       }
 
       function closeEditor() {
@@ -1841,12 +2148,19 @@
 
       function renderStepRow(step = {}) {
         return `
-          <div class="collection-item" data-row="step">
-            <div class="collection-header">
-              <div class="collection-title">Workflow Step</div>
-              <button class="ghost small" data-action="remove-row" type="button">Remove</button>
+          <div class="collection-item" data-row="step" data-step-card="true" draggable="true">
+            <div class="step-card-header">
+              <div class="step-card-title">
+                <span class="drag-handle" title="Drag to reorder">::</span>
+                <div class="collection-title">Workflow Step <span class="highlight" data-step-order-label></span></div>
+              </div>
+              <div class="step-tools">
+                <button class="ghost small" data-action="move-step-up" type="button">Up</button>
+                <button class="ghost small" data-action="move-step-down" type="button">Down</button>
+                <button class="ghost small" data-action="remove-row" type="button">Remove</button>
+              </div>
             </div>
-            <div class="field-grid">
+            <div class="field-grid" style="margin-top: 12px;">
               <div class="field">
                 <label>Step ID</label>
                 <input data-field="id" type="text" value="${escapeHtml(step.id || "")}" />
@@ -1895,12 +2209,54 @@
                 </select>
               </div>
             </div>
+            <div class="helper-stack" style="margin-top: 12px;">
+              <div class="helper-bar">
+                <div class="field">
+                  <label>Quick Dependency Add</label>
+                  <select data-helper="dependency-select"></select>
+                </div>
+                <button class="secondary small" data-action="add-step-dependency" type="button">Add Dependency</button>
+              </div>
+              <div class="helper-bar">
+                <div class="field">
+                  <label>Quick Handoff Add</label>
+                  <select data-helper="handoff-select"></select>
+                </div>
+                <button class="secondary small" data-action="add-step-handoff" type="button">Add Handoff</button>
+              </div>
+            </div>
           </div>
         `;
       }
 
       function renderAgentForm(agent, mode) {
         return `
+          <div class="section">
+            <div class="collection-header">
+              <h3>Template System</h3>
+              <span class="statusline">Apply a starter skeleton, then fine-tune the fields below.</span>
+            </div>
+            <div class="meta" style="margin: 8px 0 14px;">
+              Starter templates: Researcher, Developer, QA, Publisher.
+            </div>
+            <div class="template-grid">
+              ${Object.entries(AGENT_TEMPLATES)
+                .map(
+                  ([slug, template]) => `
+                    <article class="template-card">
+                      <div class="section-kicker">${escapeHtml(template.label)} Template</div>
+                      <h4 style="margin-top: 8px;">${escapeHtml(template.display_name)}</h4>
+                      <p>${escapeHtml(template.objective)}</p>
+                      <button class="secondary small" data-action="apply-agent-template" data-template="${escapeHtml(slug)}" type="button">
+                        Use ${escapeHtml(template.label)}
+                      </button>
+                    </article>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
+
           <div class="section">
             <h3>Identity</h3>
             <div class="field-grid">
@@ -2028,6 +2384,28 @@
       function renderWorkflowForm(workflow, mode) {
         return `
           <div class="section">
+            <div class="collection-header">
+              <h3>Flow Composer</h3>
+              <span class="statusline">Drag steps to reorder, then watch dependency lines update live.</span>
+            </div>
+            <div class="workflow-composer">
+              <div class="graph-shell">
+                <div id="workflowGraphStats" class="graph-stats"></div>
+                <div id="workflowGraphCanvas" class="graph-canvas"></div>
+              </div>
+              <div class="graph-aside">
+                <div class="control-card">
+                  <div class="control-title">Dependency Preview</div>
+                  <div class="control-meta">
+                    Each arrow represents an active dependency edge in the current draft.
+                  </div>
+                  <div id="workflowDependencyList" class="dependency-list" style="margin-top: 12px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
             <h3>Workflow Definition</h3>
             <div class="field-grid">
               <div class="field">
@@ -2083,6 +2461,390 @@
         `;
       }
 
+      function setSelectOptions(select, options, selectedValue = "") {
+        if (!select) {
+          return;
+        }
+        const previous = selectedValue || select.value;
+        select.innerHTML = options
+          .map((option) => {
+            const value =
+              typeof option === "string" ? option : option.value;
+            const label =
+              typeof option === "string" ? option : option.label;
+            return `
+              <option value="${escapeHtml(value)}" ${value === previous ? "selected" : ""}>
+                ${escapeHtml(label)}
+              </option>
+            `;
+          })
+          .join("");
+      }
+
+      function appendTokenToTextarea(textarea, value) {
+        if (!textarea || !value) {
+          return;
+        }
+        const tokens = splitTokens(textarea.value);
+        if (!tokens.includes(value)) {
+          tokens.push(value);
+          textarea.value = tokens.join("\n");
+        }
+      }
+
+      function collectWorkflowBuilderSnapshot() {
+        const form = elements.editorForm;
+        const leadBot = getLeadBot();
+        const participants = Array.from(form.querySelectorAll('[data-row="participant"]'))
+          .map((row) => {
+            const agentId = row.querySelector('[data-field="agent_id"]')?.value?.trim();
+            if (!agentId) {
+              return null;
+            }
+            return {
+              agent_id: agentId,
+              mode: row.querySelector('[data-field="mode"]')?.value || "owner",
+              responsibility:
+                row.querySelector('[data-field="responsibility"]')?.value?.trim() || "",
+              required_skills: splitTokens(
+                row.querySelector('[data-field="required_skills"]')?.value || ""
+              ),
+              notes: nullable(row.querySelector('[data-field="notes"]')?.value || ""),
+            };
+          })
+          .filter(Boolean);
+
+        if (leadBot && !participants.some((participant) => participant.agent_id === leadBot.id)) {
+          participants.unshift(participantDefault(leadBot.id));
+        }
+
+        const steps = Array.from(form.querySelectorAll('[data-row="step"]'))
+          .map((row, index) => {
+            const id = row.querySelector('[data-field="id"]')?.value?.trim() || "";
+            return {
+              index,
+              id,
+              name: row.querySelector('[data-field="name"]')?.value?.trim() || "",
+              step_type: row.querySelector('[data-field="step_type"]')?.value || "custom",
+              owner_agent_id:
+                row.querySelector('[data-field="owner_agent_id"]')?.value?.trim() || "",
+              depends_on: splitTokens(
+                row.querySelector('[data-field="depends_on"]')?.value || ""
+              ),
+              deliverables: splitTokens(
+                row.querySelector('[data-field="deliverables"]')?.value || ""
+              ),
+              handoff_to: splitTokens(
+                row.querySelector('[data-field="handoff_to"]')?.value || ""
+              ),
+              approval_required:
+                row.querySelector('[data-field="approval_required"]')?.value === "true",
+              objective:
+                row.querySelector('[data-field="objective"]')?.value?.trim() || "",
+            };
+          })
+          .filter((step) => step.id || step.name || step.owner_agent_id || step.objective);
+
+        return { participants, steps };
+      }
+
+      function buildWorkflowGraphModel(snapshot) {
+        const stepsById = new Map();
+        snapshot.steps.forEach((step) => {
+          if (step.id) {
+            stepsById.set(step.id, step);
+          }
+        });
+
+        const validEdges = [];
+        const invalidEdges = [];
+
+        snapshot.steps.forEach((step) => {
+          step.depends_on.forEach((dependencyId) => {
+            if (!dependencyId || dependencyId === step.id || !stepsById.has(dependencyId)) {
+              invalidEdges.push({
+                from: dependencyId || "missing-id",
+                to: step.id || step.name || `step-${step.index + 1}`,
+              });
+              return;
+            }
+            validEdges.push({ from: dependencyId, to: step.id });
+          });
+        });
+
+        const memo = new Map();
+        const visiting = new Set();
+        function depthFor(stepId) {
+          if (memo.has(stepId)) {
+            return memo.get(stepId);
+          }
+          if (visiting.has(stepId)) {
+            return 0;
+          }
+          visiting.add(stepId);
+          const step = stepsById.get(stepId);
+          const depth = step && step.depends_on.length
+            ? Math.max(
+                ...step.depends_on
+                  .filter((dependencyId) => stepsById.has(dependencyId) && dependencyId !== stepId)
+                  .map((dependencyId) => depthFor(dependencyId)),
+                0
+              ) + 1
+            : 0;
+          visiting.delete(stepId);
+          memo.set(stepId, depth);
+          return depth;
+        }
+
+        const nodes = snapshot.steps.map((step, index) => {
+          const depth = step.id ? depthFor(step.id) : 0;
+          return {
+            ...step,
+            index,
+            depth,
+            x: 40 + depth * 220,
+            y: 42 + index * 116,
+          };
+        });
+
+        return {
+          nodes,
+          validEdges,
+          invalidEdges,
+          width: Math.max(420, 280 + (Math.max(...nodes.map((node) => node.depth), 0) + 1) * 220),
+          height: Math.max(280, 130 + nodes.length * 116),
+        };
+      }
+
+      function renderWorkflowGraphPreview(snapshot) {
+        const statsNode = document.getElementById("workflowGraphStats");
+        const canvasNode = document.getElementById("workflowGraphCanvas");
+        const dependencyNode = document.getElementById("workflowDependencyList");
+        if (!statsNode || !canvasNode || !dependencyNode) {
+          return;
+        }
+
+        const graph = buildWorkflowGraphModel(snapshot);
+        const approvalCount = graph.nodes.filter((node) => node.approval_required).length;
+
+        statsNode.innerHTML = [
+          { label: "Steps", value: graph.nodes.length },
+          { label: "Edges", value: graph.validEdges.length },
+          { label: "Approvals", value: approvalCount },
+          { label: "Participants", value: snapshot.participants.length },
+        ]
+          .map(
+            (item) => `
+              <div class="graph-stat">
+                <div class="section-kicker">${escapeHtml(item.label)}</div>
+                <strong>${escapeHtml(item.value)}</strong>
+              </div>
+            `
+          )
+          .join("");
+
+        if (!graph.nodes.length) {
+          canvasNode.innerHTML = '<div class="empty" style="margin: 18px;">Add a step to start drawing the workflow map.</div>';
+          dependencyNode.innerHTML = '<div class="empty">No dependency edges yet.</div>';
+          return;
+        }
+
+        const nodeRects = new Map(graph.nodes.map((node) => [node.id, node]));
+        const edgeMarkup = graph.validEdges
+          .map((edge) => {
+            const fromNode = nodeRects.get(edge.from);
+            const toNode = nodeRects.get(edge.to);
+            if (!fromNode || !toNode) {
+              return "";
+            }
+            const startX = fromNode.x + 170;
+            const startY = fromNode.y + 34;
+            const endX = toNode.x;
+            const endY = toNode.y + 34;
+            const delta = Math.max(60, (endX - startX) / 2);
+            return `
+              <path
+                d="M ${startX} ${startY} C ${startX + delta} ${startY}, ${endX - delta} ${endY}, ${endX} ${endY}"
+                fill="none"
+                stroke="rgba(37, 94, 105, 0.75)"
+                stroke-width="2.5"
+                marker-end="url(#arrow)"
+              />
+            `;
+          })
+          .join("");
+
+        const nodeMarkup = graph.nodes
+          .map((node) => {
+            const owner = getAgentById(node.owner_agent_id);
+            const fill = node.approval_required
+              ? "rgba(180, 82, 52, 0.18)"
+              : "rgba(255, 255, 255, 0.94)";
+            return `
+              <g>
+                <rect
+                  x="${node.x}"
+                  y="${node.y}"
+                  rx="20"
+                  ry="20"
+                  width="170"
+                  height="68"
+                  fill="${fill}"
+                  stroke="rgba(23, 19, 16, 0.14)"
+                />
+                <text x="${node.x + 16}" y="${node.y + 24}" fill="#171310" font-size="14" font-family="Iowan Old Style, serif">
+                  ${escapeHtml(node.name || node.id || `Step ${node.index + 1}`)}
+                </text>
+                <text x="${node.x + 16}" y="${node.y + 44}" fill="#6d6256" font-size="12" font-family="Iowan Old Style, serif">
+                  ${escapeHtml(owner?.identity?.display_name || node.owner_agent_id || "unassigned")}
+                </text>
+                <text x="${node.x + 16}" y="${node.y + 60}" fill="#6d6256" font-size="11" font-family="Iowan Old Style, serif">
+                  ${escapeHtml(node.step_type)}
+                </text>
+              </g>
+            `;
+          })
+          .join("");
+
+        canvasNode.innerHTML = `
+          <svg viewBox="0 0 ${graph.width} ${graph.height}" role="img" aria-label="Workflow dependency graph">
+            <defs>
+              <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(37, 94, 105, 0.75)"></path>
+              </marker>
+            </defs>
+            ${edgeMarkup}
+            ${nodeMarkup}
+          </svg>
+        `;
+
+        const dependencyMarkup = [
+          ...graph.validEdges.map(
+            (edge) => `
+              <div class="dependency-item">
+                <div class="section-kicker">Active Edge</div>
+                <div style="margin-top: 6px;"><strong>${escapeHtml(edge.from)}</strong> → <strong>${escapeHtml(edge.to)}</strong></div>
+              </div>
+            `
+          ),
+          ...graph.invalidEdges.map(
+            (edge) => `
+              <div class="dependency-item invalid">
+                <div class="section-kicker">Invalid Edge</div>
+                <div style="margin-top: 6px;"><strong>${escapeHtml(edge.from)}</strong> → <strong>${escapeHtml(edge.to)}</strong></div>
+              </div>
+            `
+          ),
+        ];
+        dependencyNode.innerHTML =
+          dependencyMarkup.join("") || '<div class="empty">No dependency edges yet.</div>';
+      }
+
+      function syncWorkflowBuilderControls(snapshot) {
+        const participantIds = snapshot.participants.map((participant) => participant.agent_id);
+        const stepRows = Array.from(elements.editorForm.querySelectorAll('[data-row="step"]'));
+        stepRows.forEach((row, index) => {
+          const orderLabel = row.querySelector("[data-step-order-label]");
+          if (orderLabel) {
+            orderLabel.textContent = `#${index + 1}`;
+          }
+          const currentStepId = row.querySelector('[data-field="id"]')?.value?.trim() || "";
+          const ownerSelect = row.querySelector('[data-field="owner_agent_id"]');
+          setSelectOptions(
+            ownerSelect,
+            participantIds.map((agentId) => {
+              const agent = getAgentById(agentId);
+              return {
+                value: agentId,
+                label: agent ? `${agent.identity.display_name} (${agentId})` : agentId,
+              };
+            }),
+            ownerSelect?.value || ""
+          );
+
+          const dependencySelect = row.querySelector('[data-helper="dependency-select"]');
+          setSelectOptions(
+            dependencySelect,
+            [
+              { value: "", label: "Select a prior step" },
+              ...snapshot.steps
+                .filter((step) => step.id && step.id !== currentStepId)
+                .map((step) => ({
+                  value: step.id,
+                  label: `${step.id} · ${step.name || "Untitled step"}`,
+                })),
+            ],
+            ""
+          );
+
+          const handoffSelect = row.querySelector('[data-helper="handoff-select"]');
+          const ownerAgentId = ownerSelect?.value || "";
+          setSelectOptions(
+            handoffSelect,
+            [
+              { value: "", label: "Select a participant" },
+              ...participantIds
+                .filter((agentId) => agentId && agentId !== ownerAgentId)
+                .map((agentId) => {
+                  const agent = getAgentById(agentId);
+                  return {
+                    value: agentId,
+                    label: agent ? `${agent.identity.display_name} (${agentId})` : agentId,
+                  };
+                }),
+            ],
+            ""
+          );
+        });
+      }
+
+      function syncWorkflowBuilder() {
+        if (state.editor.kind !== "workflow") {
+          return;
+        }
+        const snapshot = collectWorkflowBuilderSnapshot();
+        syncWorkflowBuilderControls(snapshot);
+        renderWorkflowGraphPreview(snapshot);
+      }
+
+      function applyAgentTemplate(templateKey) {
+        const template = AGENT_TEMPLATES[templateKey];
+        if (!template) {
+          return;
+        }
+        const form = elements.editorForm;
+        const idField = form.querySelector('[name="id"]');
+        const agentId = idField?.value?.trim() || templateKey;
+        const workspace = workspacePathsForAgent(agentId);
+
+        if (idField && !idField.readOnly && !idField.value.trim()) {
+          idField.value = templateKey;
+        }
+        form.querySelector('[name="display_name"]').value = template.display_name;
+        form.querySelector('[name="role"]').value = template.role;
+        form.querySelector('[name="objective"]').value = template.objective;
+        form.querySelector('[name="remark"]').value = template.remark;
+        form.querySelector('[name="notes"]').value = template.notes;
+        form.querySelector('[name="workspace_root"]').value = workspace.root;
+        form.querySelector('[name="soul_path"]').value = workspace.soul_path;
+        form.querySelector('[name="agents_path"]').value = workspace.agents_path;
+        form.querySelector('[name="user_path"]').value = workspace.user_path;
+        form.querySelector('[name="skills_dir"]').value = workspace.skills_dir;
+        form.querySelector('[name="workspace_notes"]').value = template.workspace_note;
+        form.querySelector('[name="capabilities"]').value = listToLines(template.capabilities);
+        form.querySelector('[name="handoff_tags"]').value = listToLines(template.handoff_tags);
+        form.querySelector('[name="tools_allow"]').value = listToLines(template.tool_policy.allow);
+        form.querySelector('[name="tools_deny"]').value = listToLines(template.tool_policy.deny);
+        form.querySelector('[name="sandbox_mode"]').value = template.tool_policy.sandbox_mode;
+        form.querySelector('[name="sandbox_scope"]').value = template.tool_policy.sandbox_scope;
+        form.querySelector('[name="metadata"]').value = formatKeyValueLines(template.metadata);
+
+        const skillsCollection = document.getElementById("skillsCollection");
+        skillsCollection.innerHTML = template.skills.map((skill) => renderSkillRow(skill)).join("");
+        ensureCollectionEmptyState(skillsCollection);
+        elements.editorStatus.textContent = `${template.label} template applied. Adjust the fields, then save.`;
+      }
+
       function ensureCollectionEmptyState(collection) {
         if (!collection) {
           return;
@@ -2105,6 +2867,12 @@
           const row = trigger.closest(".collection-item");
           row?.remove();
           ensureCollectionEmptyState(row?.parentElement);
+          syncWorkflowBuilder();
+          return;
+        }
+
+        if (action === "apply-agent-template") {
+          applyAgentTemplate(trigger.getAttribute("data-template"));
           return;
         }
 
@@ -2126,6 +2894,7 @@
           const collection = document.getElementById("participantsCollection");
           collection.insertAdjacentHTML("beforeend", renderParticipantRow(participantDefault("")));
           ensureCollectionEmptyState(collection);
+          syncWorkflowBuilder();
           return;
         }
 
@@ -2148,6 +2917,50 @@
             })
           );
           ensureCollectionEmptyState(collection);
+          syncWorkflowBuilder();
+          return;
+        }
+
+        if (action === "add-step-dependency") {
+          const row = trigger.closest('[data-row="step"]');
+          const select = row?.querySelector('[data-helper="dependency-select"]');
+          const textarea = row?.querySelector('[data-field="depends_on"]');
+          appendTokenToTextarea(textarea, select?.value);
+          if (select) {
+            select.value = "";
+          }
+          syncWorkflowBuilder();
+          return;
+        }
+
+        if (action === "add-step-handoff") {
+          const row = trigger.closest('[data-row="step"]');
+          const select = row?.querySelector('[data-helper="handoff-select"]');
+          const textarea = row?.querySelector('[data-field="handoff_to"]');
+          appendTokenToTextarea(textarea, select?.value);
+          if (select) {
+            select.value = "";
+          }
+          syncWorkflowBuilder();
+          return;
+        }
+
+        if (action === "move-step-up" || action === "move-step-down") {
+          const row = trigger.closest('[data-row="step"]');
+          if (!row) {
+            return;
+          }
+          const sibling =
+            action === "move-step-up" ? row.previousElementSibling : row.nextElementSibling;
+          if (!sibling) {
+            return;
+          }
+          if (action === "move-step-up") {
+            row.parentElement.insertBefore(row, sibling);
+          } else {
+            row.parentElement.insertBefore(row, sibling.nextElementSibling);
+          }
+          syncWorkflowBuilder();
         }
       }
 
@@ -2415,6 +3228,73 @@
           return;
         }
         handleEditorCollectionAction(action, trigger);
+      });
+
+      elements.editorForm.addEventListener("input", () => {
+        if (state.editor.kind === "workflow") {
+          syncWorkflowBuilder();
+        }
+      });
+
+      elements.editorForm.addEventListener("change", () => {
+        if (state.editor.kind === "workflow") {
+          syncWorkflowBuilder();
+        }
+      });
+
+      let draggedStepRow = null;
+      elements.editorSections.addEventListener("dragstart", (event) => {
+        if (state.editor.kind !== "workflow") {
+          return;
+        }
+        const row = event.target.closest('[data-row="step"]');
+        if (!row) {
+          return;
+        }
+        draggedStepRow = row;
+        row.classList.add("dragging");
+        if (event.dataTransfer) {
+          event.dataTransfer.effectAllowed = "move";
+        }
+      });
+
+      elements.editorSections.addEventListener("dragover", (event) => {
+        if (state.editor.kind !== "workflow" || !draggedStepRow) {
+          return;
+        }
+        const targetRow = event.target.closest('[data-row="step"]');
+        if (!targetRow || targetRow === draggedStepRow) {
+          return;
+        }
+        event.preventDefault();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "move";
+        }
+      });
+
+      elements.editorSections.addEventListener("drop", (event) => {
+        if (state.editor.kind !== "workflow" || !draggedStepRow) {
+          return;
+        }
+        const targetRow = event.target.closest('[data-row="step"]');
+        if (!targetRow || targetRow === draggedStepRow) {
+          return;
+        }
+        event.preventDefault();
+        const rect = targetRow.getBoundingClientRect();
+        const insertAfter = event.clientY > rect.top + rect.height / 2;
+        targetRow.parentElement.insertBefore(
+          draggedStepRow,
+          insertAfter ? targetRow.nextElementSibling : targetRow
+        );
+        syncWorkflowBuilder();
+      });
+
+      elements.editorSections.addEventListener("dragend", () => {
+        if (draggedStepRow) {
+          draggedStepRow.classList.remove("dragging");
+        }
+        draggedStepRow = null;
       });
 
       elements.editorShell.addEventListener("click", (event) => {

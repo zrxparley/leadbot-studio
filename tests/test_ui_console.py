@@ -24,6 +24,10 @@ def test_console_page_renders():
     assert "Low-code configuration" in response.text
     assert "New Agent" in response.text
     assert "New Workflow" in response.text
+    assert "Flow Composer" in response.text
+    assert "Drag steps to reorder" in response.text
+    assert "Template System" in response.text
+    assert "Researcher, Developer, QA, Publisher" in response.text
     assert "Run Controls" in response.text
     assert "Step Controls" in response.text
     assert "Apply Run Status" in response.text
