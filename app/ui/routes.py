@@ -458,6 +458,66 @@ CONSOLE_HTML = """<!DOCTYPE html>
         color: var(--ink);
       }
 
+      .control-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        margin-top: 14px;
+      }
+
+      .control-card {
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.52);
+        padding: 14px;
+      }
+
+      .control-title {
+        font-size: 0.9rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .control-meta {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+
+      .inline-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .inline-form select,
+      .inline-form input {
+        min-height: 44px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.78);
+        padding: 0 14px;
+        color: var(--ink);
+      }
+
+      .inline-form select {
+        min-width: 190px;
+      }
+
+      .inline-form input {
+        flex: 1 1 220px;
+      }
+
+      .inline-form button:disabled,
+      .inline-form select:disabled,
+      .inline-form input:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
       .split {
         display: flex;
         align-items: center;
@@ -473,6 +533,13 @@ CONSOLE_HTML = """<!DOCTYPE html>
 
       .loading {
         opacity: 0.6;
+      }
+
+      .timestamp {
+        display: inline-block;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 0.82rem;
       }
 
       @media (max-width: 1180px) {
@@ -557,7 +624,10 @@ CONSOLE_HTML = """<!DOCTYPE html>
           </div>
           <div id="runsList" class="stack"></div>
           <div class="section">
-            <h3>Selected Run</h3>
+            <div class="split">
+              <h3>Selected Run</h3>
+              <span id="runActionStatus" class="statusline"></span>
+            </div>
             <div id="runMeta"></div>
           </div>
           <div class="section">
@@ -593,6 +663,27 @@ CONSOLE_HTML = """<!DOCTYPE html>
         runCreateStatus: document.getElementById("runCreateStatus"),
         runInput: document.getElementById("runInput"),
         openDocsButton: document.getElementById("openDocsButton"),
+        runActionStatus: document.getElementById("runActionStatus"),
+      };
+
+      const RUN_TRANSITIONS = {
+        previewed: ["queued", "cancelled"],
+        queued: ["running", "blocked", "cancelled"],
+        running: ["awaiting_approval", "failed", "completed", "blocked", "cancelled"],
+        awaiting_approval: ["running", "failed", "completed", "cancelled"],
+        blocked: ["queued", "running", "cancelled"],
+        failed: ["queued", "cancelled"],
+        completed: [],
+        cancelled: [],
+      };
+
+      const STEP_TRANSITIONS = {
+        blocked: ["queued"],
+        queued: ["running", "awaiting_approval", "completed", "failed"],
+        running: ["awaiting_approval", "completed", "failed", "queued"],
+        awaiting_approval: ["running", "completed", "failed"],
+        failed: ["queued"],
+        completed: [],
       };
 
       function escapeHtml(value) {
@@ -607,10 +698,34 @@ CONSOLE_HTML = """<!DOCTYPE html>
       async function fetchJson(url, options) {
         const response = await fetch(url, options);
         if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text || `Request failed: ${response.status}`);
+          let detail = `Request failed: ${response.status}`;
+          try {
+            const payload = await response.json();
+            detail = payload.detail || JSON.stringify(payload);
+          } catch (_error) {
+            const text = await response.text();
+            if (text) {
+              detail = text;
+            }
+          }
+          throw new Error(detail);
         }
         return response.json();
+      }
+
+      function humanizeStatus(value) {
+        return String(value ?? "").replaceAll("_", " ");
+      }
+
+      function formatTimestamp(value) {
+        if (!value) {
+          return "Unknown time";
+        }
+        const timestamp = new Date(value);
+        if (Number.isNaN(timestamp.getTime())) {
+          return value;
+        }
+        return timestamp.toLocaleString();
       }
 
       function renderSummary() {
@@ -734,50 +849,33 @@ CONSOLE_HTML = """<!DOCTYPE html>
         });
       }
 
-      function renderRunDetail(run, events) {
-        if (!run) {
-          elements.runMeta.innerHTML = '<div class="empty">Select a run to inspect its current state.</div>';
-          elements.eventsList.innerHTML = '<div class="empty">No events to display yet.</div>';
-          return;
-        }
-        elements.runMeta.innerHTML = `
-          <div class="pill-row">
-            <span class="pill status-${escapeHtml(run.status)}">${escapeHtml(run.status)}</span>
-            <span class="pill">${escapeHtml(run.run_id)}</span>
-          </div>
-          <div class="meta" style="margin-top: 12px;">${escapeHtml(run.input_summary)}</div>
-          <div class="meta">Next steps: ${escapeHtml((run.next_steps || []).join(", ") || "None")}</div>
-          <div class="meta">Blocked: ${escapeHtml((run.blocked_steps || []).join(", ") || "None")}</div>
-          <div class="meta">Approvals: ${escapeHtml((run.approval_steps || []).join(", ") || "None")}</div>
-        `;
-
-        if (!events.length) {
-          elements.eventsList.innerHTML = '<div class="empty">No audit events recorded yet.</div>';
-          return;
-        }
-
-        elements.eventsList.innerHTML = events.map((event) => `
-          <div class="event">
-            <div class="event-type">${escapeHtml(event.event_type)}</div>
-            <div class="event-body">
-              ${escapeHtml(event.target_kind)} ${escapeHtml(event.target_id || "")}
-              ${event.from_status || event.to_status ? `• ${escapeHtml(event.from_status || "none")} → ${escapeHtml(event.to_status || "none")}` : ""}
-              ${event.note ? `<br />${escapeHtml(event.note)}` : ""}
-            </div>
-          </div>
-        `).join("");
-      }
-
-      async function selectWorkflow(workflowId) {
+      async function selectWorkflow(workflowId, options = {}) {
         state.selectedWorkflowId = workflowId;
+        if (!workflowId) {
+          renderWorkflows();
+          state.runs = [];
+          state.selectedRunId = null;
+          renderRuns();
+          renderRunDetail(null, []);
+          return;
+        }
         if (!state.workflowPlans.has(workflowId)) {
           const plan = await fetchJson(`/studio/workflows/${workflowId}/plan`);
           state.workflowPlans.set(workflowId, plan);
         }
         renderWorkflows();
+        if (options.loadRuns !== false) {
+          await loadRuns();
+        }
       }
 
       async function selectRun(runId) {
+        if (!runId) {
+          state.selectedRunId = null;
+          renderRuns();
+          renderRunDetail(null, []);
+          return;
+        }
         state.selectedRunId = runId;
         const [run, events] = await Promise.all([
           fetchJson(`/studio/runs/${runId}`),
@@ -806,6 +904,7 @@ CONSOLE_HTML = """<!DOCTYPE html>
       async function refreshAll() {
         document.body.classList.add("loading");
         elements.runCreateStatus.textContent = "Refreshing studio…";
+        elements.runActionStatus.textContent = "";
         try {
           const [summary, agents, workflows] = await Promise.all([
             fetchJson("/studio/summary"),
@@ -822,8 +921,7 @@ CONSOLE_HTML = """<!DOCTYPE html>
           }
           renderSummary();
           renderAgents();
-          await selectWorkflow(state.selectedWorkflowId);
-          await loadRuns();
+          await selectWorkflow(state.selectedWorkflowId, { loadRuns: true });
           elements.runCreateStatus.textContent = "Studio refreshed.";
         } catch (error) {
           console.error(error);
@@ -853,6 +951,185 @@ CONSOLE_HTML = """<!DOCTYPE html>
         } catch (error) {
           console.error(error);
           elements.runCreateStatus.textContent = "Run creation failed.";
+        }
+      }
+
+      function renderRunDetail(run, events) {
+        if (!run) {
+          elements.runMeta.innerHTML = '<div class="empty">Select a run to inspect its current state.</div>';
+          elements.eventsList.innerHTML = '<div class="empty">No events to display yet.</div>';
+          return;
+        }
+
+        const runTransitions = RUN_TRANSITIONS[run.status] || [];
+        const runIsTerminal = run.status === "completed" || run.status === "cancelled";
+
+        elements.runMeta.innerHTML = `
+          <div class="pill-row">
+            <span class="pill status-${escapeHtml(run.status)}">${escapeHtml(humanizeStatus(run.status))}</span>
+            <span class="pill">${escapeHtml(run.run_id)}</span>
+            <span class="pill">${escapeHtml(run.operator || "unassigned")}</span>
+          </div>
+          <div class="meta" style="margin-top: 12px;">${escapeHtml(run.input_summary)}</div>
+          <div class="meta">Next steps: ${escapeHtml((run.next_steps || []).join(", ") || "None")}</div>
+          <div class="meta">Blocked: ${escapeHtml((run.blocked_steps || []).join(", ") || "None")}</div>
+          <div class="meta">Approvals: ${escapeHtml((run.approval_steps || []).join(", ") || "None")}</div>
+          <div class="control-stack">
+            <div class="control-card">
+              <div class="control-title">Run Controls</div>
+              <div class="control-meta">
+                Move the workflow run through the control plane without leaving the operator console.
+              </div>
+              ${
+                runTransitions.length
+                  ? `
+                    <div class="inline-form">
+                      <select id="runStatusSelect" aria-label="Run status">
+                        ${runTransitions.map((status) => `
+                          <option value="${escapeHtml(status)}">${escapeHtml(humanizeStatus(status))}</option>
+                        `).join("")}
+                      </select>
+                      <input id="runStatusNote" type="text" placeholder="Optional run note" />
+                      <button id="applyRunStatusButton" type="button">Apply Run Status</button>
+                    </div>
+                  `
+                  : `<div class="control-meta">${runIsTerminal ? "This run is terminal and no longer accepts state changes." : "No run-level transitions are available right now."}</div>`
+              }
+            </div>
+            <div class="control-card">
+              <div class="control-title">Step Controls</div>
+              <div class="control-meta">
+                Advance specialist work one step at a time. Dependency blocking is still enforced by the backend.
+              </div>
+              ${
+                (run.step_previews || []).map((step, index) => {
+                  const transitions = runIsTerminal ? [] : (STEP_TRANSITIONS[step.status] || []);
+                  return `
+                    <div class="step">
+                      <div class="step-index">${escapeHtml(index + 1)}</div>
+                      <div>
+                        <div class="step-title">${escapeHtml(step.name)}</div>
+                        <div class="step-copy">
+                          ${escapeHtml(step.owner_display_name)} owns this step.
+                          ${step.blockers?.length ? ` Blocked by ${escapeHtml(step.blockers.join(", "))}.` : ""}
+                          ${step.notes ? ` Latest note: ${escapeHtml(step.notes)}` : ""}
+                        </div>
+                        <div class="pill-row">
+                          <span class="pill status-${escapeHtml(step.status)}">${escapeHtml(humanizeStatus(step.status))}</span>
+                          <span class="pill">${escapeHtml(step.owner_agent_id)}</span>
+                          ${step.approval_required ? '<span class="pill status-awaiting_approval">approval gate</span>' : ""}
+                        </div>
+                        ${
+                          transitions.length
+                            ? `
+                              <div class="inline-form">
+                                <select data-step-select="${escapeHtml(step.step_id)}" aria-label="Step status">
+                                  ${transitions.map((status) => `
+                                    <option value="${escapeHtml(status)}">${escapeHtml(humanizeStatus(status))}</option>
+                                  `).join("")}
+                                </select>
+                                <input data-step-note="${escapeHtml(step.step_id)}" type="text" placeholder="Optional step note" />
+                                <button data-step-apply="${escapeHtml(step.step_id)}" type="button">Update Step</button>
+                              </div>
+                            `
+                            : `<div class="control-meta">${runIsTerminal ? "Run is terminal, so step controls are locked." : "This step is already terminal."}</div>`
+                        }
+                      </div>
+                      <div class="meta">${escapeHtml((step.deliverables || []).join(", ") || "No deliverables")}</div>
+                    </div>
+                  `;
+                }).join("")
+              }
+            </div>
+          </div>
+        `;
+
+        const runActionButton = document.getElementById("applyRunStatusButton");
+        if (runActionButton) {
+          runActionButton.addEventListener("click", applyRunStatus);
+        }
+        elements.runMeta.querySelectorAll("[data-step-apply]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const stepId = button.getAttribute("data-step-apply");
+            applyStepStatus(stepId);
+          });
+        });
+
+        if (!events.length) {
+          elements.eventsList.innerHTML = '<div class="empty">No audit events recorded yet.</div>';
+          return;
+        }
+
+        elements.eventsList.innerHTML = events.map((event) => `
+          <div class="event">
+            <div class="event-type">${escapeHtml(event.event_type)}</div>
+            <div class="event-body">
+              ${escapeHtml(event.target_kind)} ${escapeHtml(event.target_id || "")}
+              ${event.from_status || event.to_status ? `• ${escapeHtml(humanizeStatus(event.from_status || "none"))} → ${escapeHtml(humanizeStatus(event.to_status || "none"))}` : ""}
+              ${event.note ? `<br />${escapeHtml(event.note)}` : ""}
+              ${event.actor ? `<br />Actor: ${escapeHtml(event.actor)}` : ""}
+              <span class="timestamp">${escapeHtml(formatTimestamp(event.created_at))}</span>
+            </div>
+          </div>
+        `).join("");
+      }
+
+      async function applyRunStatus() {
+        if (!state.selectedRunId) {
+          elements.runActionStatus.textContent = "Pick a run first.";
+          return;
+        }
+        const statusSelect = document.getElementById("runStatusSelect");
+        const noteInput = document.getElementById("runStatusNote");
+        if (!statusSelect) {
+          elements.runActionStatus.textContent = "No run transition available.";
+          return;
+        }
+        elements.runActionStatus.textContent = "Updating run…";
+        try {
+          await fetchJson(`/studio/runs/${state.selectedRunId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: statusSelect.value,
+              note: noteInput?.value?.trim() || null,
+              operator: "console-operator",
+            }),
+          });
+          await loadRuns();
+          elements.runActionStatus.textContent = `Run moved to ${humanizeStatus(statusSelect.value)}.`;
+        } catch (error) {
+          console.error(error);
+          elements.runActionStatus.textContent = error.message || "Run update failed.";
+        }
+      }
+
+      async function applyStepStatus(stepId) {
+        if (!state.selectedRunId || !stepId) {
+          elements.runActionStatus.textContent = "Pick a run and step first.";
+          return;
+        }
+        const statusSelect = elements.runMeta.querySelector(`[data-step-select="${CSS.escape(stepId)}"]`);
+        const noteInput = elements.runMeta.querySelector(`[data-step-note="${CSS.escape(stepId)}"]`);
+        if (!statusSelect) {
+          elements.runActionStatus.textContent = "No step transition available.";
+          return;
+        }
+        elements.runActionStatus.textContent = `Updating step ${stepId}…`;
+        try {
+          await fetchJson(`/studio/runs/${state.selectedRunId}/steps/${stepId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: statusSelect.value,
+              note: noteInput?.value?.trim() || null,
+            }),
+          });
+          await loadRuns();
+          elements.runActionStatus.textContent = `Step ${stepId} moved to ${humanizeStatus(statusSelect.value)}.`;
+        } catch (error) {
+          console.error(error);
+          elements.runActionStatus.textContent = error.message || "Step update failed.";
         }
       }
 
