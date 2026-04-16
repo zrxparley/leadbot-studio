@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import WorkflowRunRecord
-from app.studio.schemas import WorkflowRunRequest
+from app.studio.schemas import (
+    RunStatus,
+    StepStatus,
+    WorkflowRunRequest,
+    WorkflowRunStepUpdateRequest,
+    WorkflowRunUpdateRequest,
+)
 from app.studio.service import StudioManifestService
 
 
 class WorkflowRunNotFoundError(ValueError):
     """Raised when a requested workflow run cannot be found."""
+
+
+class WorkflowRunTransitionError(ValueError):
+    """Raised when a workflow run transition is invalid."""
 
 
 class WorkflowRunService:
@@ -58,8 +69,168 @@ class WorkflowRunService:
         return [record.to_dict() for record in self.db.scalars(statement).all()]
 
     def get_run(self, run_id: str) -> dict:
+        record = self._get_record(run_id)
+        return record.to_dict()
+
+    def update_run(
+        self, run_id: str, request: WorkflowRunUpdateRequest | dict[str, Any]
+    ) -> dict:
+        record = self._get_record(run_id)
+        update = (
+            request
+            if isinstance(request, WorkflowRunUpdateRequest)
+            else WorkflowRunUpdateRequest.model_validate(request)
+        )
+
+        self._validate_run_transition(record.status, update.status)
+        record.status = update.status
+        metadata = json.loads(record.metadata_json)
+        if update.note:
+            metadata["last_run_note"] = update.note
+        if update.operator:
+            record.operator = update.operator
+        record.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        self.db.commit()
+        self.db.refresh(record)
+        return record.to_dict()
+
+    def update_run_step(
+        self,
+        run_id: str,
+        step_id: str,
+        request: WorkflowRunStepUpdateRequest | dict[str, Any],
+    ) -> dict:
+        record = self._get_record(run_id)
+        update = (
+            request
+            if isinstance(request, WorkflowRunStepUpdateRequest)
+            else WorkflowRunStepUpdateRequest.model_validate(request)
+        )
+        if record.status in {"completed", "cancelled"}:
+            raise WorkflowRunTransitionError(
+                f"Run '{run_id}' is already '{record.status}' and cannot be modified."
+            )
+        step_previews = json.loads(record.step_previews_json)
+        step_map = {step["step_id"]: step for step in step_previews}
+        if step_id not in step_map:
+            raise WorkflowRunTransitionError(f"Unknown step '{step_id}' in run '{run_id}'.")
+
+        step = step_map[step_id]
+        self._validate_step_transition(step["status"], update.status)
+        if update.status in {"running", "awaiting_approval", "completed"} and step["blockers"]:
+            raise WorkflowRunTransitionError(
+                f"Step '{step_id}' is still blocked by: {', '.join(step['blockers'])}."
+            )
+
+        step["status"] = update.status
+        if update.note:
+            step["notes"] = update.note
+
+        if update.status == "completed":
+            self._unlock_dependent_steps(step_id, step_previews)
+
+        record.step_previews_json = json.dumps(step_previews, ensure_ascii=False)
+        record.status = self._derive_run_status(step_previews, record.status)
+        self._refresh_run_indexes(record, step_previews)
+        self.db.commit()
+        self.db.refresh(record)
+        return record.to_dict()
+
+    def _get_record(self, run_id: str) -> WorkflowRunRecord:
         statement = select(WorkflowRunRecord).where(WorkflowRunRecord.run_id == run_id)
         record = self.db.scalar(statement)
         if record is None:
             raise WorkflowRunNotFoundError(run_id)
-        return record.to_dict()
+        return record
+
+    @staticmethod
+    def _validate_run_transition(current: str, target: RunStatus) -> None:
+        allowed: dict[str, set[str]] = {
+            "previewed": {"queued", "cancelled"},
+            "queued": {"running", "cancelled", "blocked"},
+            "running": {"awaiting_approval", "failed", "completed", "cancelled", "blocked"},
+            "awaiting_approval": {"running", "failed", "completed", "cancelled"},
+            "blocked": {"queued", "running", "cancelled"},
+            "failed": {"queued", "cancelled"},
+            "completed": set(),
+            "cancelled": set(),
+        }
+        if target == current:
+            return
+        if target not in allowed.get(current, set()):
+            raise WorkflowRunTransitionError(
+                f"Cannot transition run from '{current}' to '{target}'."
+            )
+
+    @staticmethod
+    def _validate_step_transition(current: str, target: StepStatus) -> None:
+        allowed: dict[str, set[str]] = {
+            "blocked": {"queued"},
+            "queued": {"running", "awaiting_approval", "completed", "failed"},
+            "running": {"awaiting_approval", "completed", "failed", "queued"},
+            "awaiting_approval": {"running", "completed", "failed"},
+            "failed": {"queued"},
+            "completed": set(),
+        }
+        if target == current:
+            return
+        if target not in allowed.get(current, set()):
+            raise WorkflowRunTransitionError(
+                f"Cannot transition step from '{current}' to '{target}'."
+            )
+
+    @staticmethod
+    def _unlock_dependent_steps(completed_step_id: str, step_previews: list[dict[str, Any]]) -> None:
+        completed_ids = {
+            step["step_id"]
+            for step in step_previews
+            if step["status"] == "completed"
+        }
+        completed_ids.add(completed_step_id)
+        for step in step_previews:
+            if completed_step_id not in step["depends_on"]:
+                continue
+            remaining_blockers = [
+                dependency for dependency in step["depends_on"] if dependency not in completed_ids
+            ]
+            step["blockers"] = remaining_blockers
+            if not remaining_blockers and step["status"] == "blocked":
+                step["status"] = "queued"
+
+    @staticmethod
+    def _derive_run_status(step_previews: list[dict[str, Any]], current_status: str) -> str:
+        if current_status == "cancelled":
+            return "cancelled"
+        statuses = {step["status"] for step in step_previews}
+        if "failed" in statuses:
+            return "failed"
+        if statuses == {"completed"}:
+            return "completed"
+        if "awaiting_approval" in statuses:
+            return "awaiting_approval"
+        if "running" in statuses:
+            return "running"
+        if "queued" in statuses:
+            return "queued"
+        if "blocked" in statuses:
+            return "blocked"
+        return current_status
+
+    @staticmethod
+    def _refresh_run_indexes(record: WorkflowRunRecord, step_previews: list[dict[str, Any]]) -> None:
+        record.next_steps_json = json.dumps(
+            [step["step_id"] for step in step_previews if step["status"] == "queued"],
+            ensure_ascii=False,
+        )
+        record.blocked_steps_json = json.dumps(
+            [step["step_id"] for step in step_previews if step["status"] == "blocked"],
+            ensure_ascii=False,
+        )
+        record.approval_steps_json = json.dumps(
+            [
+                step["step_id"]
+                for step in step_previews
+                if step["status"] == "awaiting_approval" or step["approval_required"]
+            ],
+            ensure_ascii=False,
+        )

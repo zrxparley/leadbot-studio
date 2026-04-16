@@ -5,6 +5,25 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+RunStatus = Literal[
+    "previewed",
+    "queued",
+    "running",
+    "awaiting_approval",
+    "blocked",
+    "failed",
+    "completed",
+    "cancelled",
+]
+StepStatus = Literal[
+    "queued",
+    "blocked",
+    "running",
+    "awaiting_approval",
+    "failed",
+    "completed",
+]
+
 
 class BotIdentity(BaseModel):
     display_name: str
@@ -231,12 +250,13 @@ class WorkflowRunStepPreview(BaseModel):
     name: str
     owner_agent_id: str
     owner_display_name: str
-    status: Literal["queued", "blocked"]
+    status: StepStatus
     depends_on: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
     deliverables: list[str] = Field(default_factory=list)
     approval_required: bool = False
     handoff_to: list[str] = Field(default_factory=list)
+    notes: str | None = None
 
 
 class WorkflowRunPreview(BaseModel):
@@ -246,6 +266,7 @@ class WorkflowRunPreview(BaseModel):
     workflow_name: str
     lead_agent_id: str
     operator: str | None = None
+    status: RunStatus = "previewed"
     input_summary: str
     requested_outputs: list[str] = Field(default_factory=list)
     created_at: datetime
@@ -254,3 +275,14 @@ class WorkflowRunPreview(BaseModel):
     approval_steps: list[str] = Field(default_factory=list)
     step_previews: list[WorkflowRunStepPreview] = Field(default_factory=list)
     metadata: dict[str, str] = Field(default_factory=dict)
+
+
+class WorkflowRunUpdateRequest(BaseModel):
+    status: RunStatus
+    note: str | None = None
+    operator: str | None = None
+
+
+class WorkflowRunStepUpdateRequest(BaseModel):
+    status: StepStatus
+    note: str | None = None

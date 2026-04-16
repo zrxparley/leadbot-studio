@@ -2,8 +2,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.studio.schemas import AgentBot, StudioManifest, WorkflowDefinition, WorkflowRunRequest
-from app.studio.runtime import WorkflowRunNotFoundError, WorkflowRunService
+from app.studio.schemas import (
+    AgentBot,
+    StudioManifest,
+    WorkflowDefinition,
+    WorkflowRunRequest,
+    WorkflowRunStepUpdateRequest,
+    WorkflowRunUpdateRequest,
+)
+from app.studio.runtime import (
+    WorkflowRunNotFoundError,
+    WorkflowRunService,
+    WorkflowRunTransitionError,
+)
 from app.studio.service import (
     AgentNotFoundError,
     EntityConflictError,
@@ -154,6 +165,35 @@ def get_workflow_run(run_id: str, db: Session = Depends(get_db)) -> dict:
         return WorkflowRunService(db, studio_service).get_run(run_id)
     except WorkflowRunNotFoundError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown workflow run: {exc}") from exc
+
+
+@router.patch("/runs/{run_id}")
+def update_workflow_run(
+    run_id: str,
+    request: WorkflowRunUpdateRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        return WorkflowRunService(db, studio_service).update_run(run_id, request)
+    except WorkflowRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow run: {exc}") from exc
+    except WorkflowRunTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.patch("/runs/{run_id}/steps/{step_id}")
+def update_workflow_run_step(
+    run_id: str,
+    step_id: str,
+    request: WorkflowRunStepUpdateRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        return WorkflowRunService(db, studio_service).update_run_step(run_id, step_id, request)
+    except WorkflowRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow run: {exc}") from exc
+    except WorkflowRunTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.get("/openclaw/export")
