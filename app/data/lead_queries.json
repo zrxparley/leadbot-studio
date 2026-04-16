@@ -1,0 +1,272 @@
+[
+  {
+    "name": "global-go4wb-wire-mesh-buyers",
+    "provider": "go4worldbusiness-buyer-listing",
+    "query": "Global wire mesh procurement buyers and importers",
+    "url": "https://www.go4worldbusiness.com/buyers/wire-mesh-gratings.html",
+    "country": "Global",
+    "product_interest": "wire mesh",
+    "allowed_domains": ["go4worldbusiness.com"],
+    "enabled": false
+  },
+  {
+    "name": "mongolia-ungm-metal-mesh-notice-2026",
+    "provider": "ungm-notice-search",
+    "query": "UNGM recent metal mesh procurement notice",
+    "url": "https://www.ungm.org/Public/Notice/296766",
+    "country": "Mongolia",
+    "product_interest": "wire mesh procurement",
+    "allowed_domains": ["ungm.org"],
+    "enabled": true
+  },
+  {
+    "name": "multicountry-ungm-fencing-materials-2026",
+    "provider": "ungm-notice-search",
+    "query": "UNGM recent fencing materials procurement notice",
+    "url": "https://www.ungm.org/Public/Notice/294192",
+    "country": "Multiple destinations",
+    "product_interest": "fencing materials procurement",
+    "allowed_domains": ["ungm.org"],
+    "enabled": true
+  },
+  {
+    "name": "germany-service-bund-wire-fence-2026",
+    "provider": "service-bund-search",
+    "query": "zaun",
+    "country": "Germany",
+    "product_interest": "wire fence procurement",
+    "allowed_domains": ["service.bund.de", "bund.vergabe24.de"],
+    "enabled": true
+  },
+  {
+    "name": "germany-service-bund-welded-mesh-2026",
+    "provider": "service-bund-search",
+    "query": "maschendrahtzaun",
+    "country": "Germany",
+    "product_interest": "welded mesh procurement",
+    "allowed_domains": ["service.bund.de", "bund.vergabe24.de"],
+    "enabled": true
+  },
+  {
+    "name": "canada-canadabuys-trailer-procurement-2025",
+    "provider": "canadabuys-notice",
+    "query": "CanadaBuys enclosed trailer procurement notice",
+    "url": "https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/cb-638-26291550",
+    "country": "Canada",
+    "product_interest": "industrial transport equipment procurement",
+    "allowed_domains": ["canadabuys.canada.ca"],
+    "enabled": true
+  },
+  {
+    "name": "canada-canadabuys-public-works-access-road-2025",
+    "provider": "canadabuys-notice",
+    "query": "CanadaBuys public works infrastructure procurement notice",
+    "url": "https://canadabuys.canada.ca/en/tender-opportunities/tender-notice/qc20068591",
+    "country": "Canada",
+    "product_interest": "public works infrastructure procurement",
+    "allowed_domains": ["canadabuys.canada.ca"],
+    "enabled": true
+  },
+  {
+    "name": "australia-tenders-wa-fence-2026",
+    "provider": "tenders-wa-listing",
+    "query": "fence fencing gates gate perimeter prison security",
+    "country": "Australia",
+    "product_interest": "fence and gate procurement",
+    "allowed_domains": ["tenders.wa.gov.au"],
+    "enabled": false
+  },
+  {
+    "name": "australia-tasmania-fencing-facility-2026",
+    "provider": "tasmania-tenders-listing",
+    "query": "fence fencing mesh gate gates chain barbed wire",
+    "country": "Australia",
+    "product_interest": "fence and perimeter procurement",
+    "allowed_domains": ["tenders.tas.gov.au"],
+    "enabled": true
+  },
+  {
+    "name": "australia-vendorpanel-fencing-search-2026",
+    "provider": "vendorpanel-rss",
+    "query": "fencing gate gates mesh chain barbed noise fence",
+    "country": "Australia",
+    "product_interest": "fence and perimeter procurement",
+    "allowed_domains": ["vendorpanel.com.au"],
+    "enabled": true
+  },
+  {
+    "name": "canada-merx-fencing-projects-2026",
+    "provider": "merx-notice",
+    "query": "MERX fencing projects procurement notice",
+    "url": "https://www.merx.com/solicitations/open-bids/RFQ-01-2026-Fencing-Projects/0000311566",
+    "country": "Canada",
+    "product_interest": "fencing projects procurement",
+    "allowed_domains": ["merx.com"],
+    "enabled": true
+  },
+  {
+    "name": "canada-merx-fencing-search-2026",
+    "provider": "merx-search",
+    "query": "fencing, chain link, gate, security gates",
+    "country": "Canada",
+    "product_interest": "fencing and perimeter procurement",
+    "allowed_domains": ["merx.com"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-easytenders-fencing-materials-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders fencing materials procurement notice",
+    "url": "https://easytenders.co.za/tenders/rfq369-am-fencing-materials-tzaneen",
+    "country": "South Africa",
+    "product_interest": "fencing materials procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-arc-welded-wire-mesh-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders welded wire mesh security fence procurement notice",
+    "url": "https://easytenders.co.za/tenders/arc-68-03-2026-supply-fence",
+    "country": "South Africa",
+    "product_interest": "welded wire mesh security fence procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-kouga-barbed-wire-fence-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders barbed wire fence procurement notice",
+    "url": "https://easytenders.co.za/tenders/87-2026-fence-sea-vista",
+    "country": "South Africa",
+    "product_interest": "barbed wire fence procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-kwazulu-eco-park-fencing-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders perimeter fencing procurement notice",
+    "url": "https://easytenders.co.za/tenders/3410-2026-01-fencing-clearance",
+    "country": "South Africa",
+    "product_interest": "perimeter fencing procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-klipfontein-security-fencing-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders security fencing materials procurement notice",
+    "url": "https://easytenders.co.za/tenders/wte214ce-kzn-fencing-material-dam-project-217349",
+    "country": "South Africa",
+    "product_interest": "security fencing materials procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-cookhouse-landfill-fencing-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders site fencing procurement notice",
+    "url": "https://easytenders.co.za/tenders/t06-2026-fencing-cookhouse-landfill",
+    "country": "South Africa",
+    "product_interest": "site fencing procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-eastern-cape-fencing-material-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders agriculture fencing material procurement notice",
+    "url": "https://easytenders.co.za/tenders/scmu8-26-27-0029-eastern-cape-agriculture-fencing-material",
+    "country": "South Africa",
+    "product_interest": "agriculture fencing material procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-eastern-cape-supply-delivery-fencing-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders supply and delivery of fencing material notice",
+    "url": "https://easytenders.co.za/tenders/scmu8-26-27-0034-eastern-cape-supply-delivery-fencing-material",
+    "country": "South Africa",
+    "product_interest": "fencing material procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": false
+  },
+  {
+    "name": "south-africa-port-st-johns-fencing-2026",
+    "provider": "easytenders-notice",
+    "query": "EasyTenders fencing materials procurement notice",
+    "url": "https://easytenders.co.za/tenders/psjlm-led-2025-26-19-port-st-johns-supply-delivery",
+    "country": "South Africa",
+    "product_interest": "fencing materials procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-easytenders-wire-mesh-search",
+    "provider": "easytenders-search",
+    "query": "site:easytenders.co.za/tenders \"wire mesh\" OR \"welded mesh\" OR \"chain link\" tender",
+    "country": "South Africa",
+    "product_interest": "wire mesh procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "south-africa-easytenders-fence-search",
+    "provider": "easytenders-search",
+    "query": "site:easytenders.co.za/tenders fencing material OR barbed wire OR perimeter fence tender",
+    "country": "South Africa",
+    "product_interest": "fence mesh procurement",
+    "allowed_domains": ["easytenders.co.za"],
+    "enabled": true
+  },
+  {
+    "name": "global-ungm-wire-mesh-notices",
+    "provider": "ungm-notice-search",
+    "query": "site:ungm.org/Public/Notice \"wire mesh\" procurement",
+    "country": "Global",
+    "product_interest": "wire mesh procurement",
+    "allowed_domains": ["ungm.org"],
+    "enabled": false
+  },
+  {
+    "name": "global-ungm-fence-mesh-notices",
+    "provider": "ungm-notice-search",
+    "query": "site:ungm.org/Public/Notice mesh procurement fence",
+    "country": "Global",
+    "product_interest": "wire mesh procurement",
+    "allowed_domains": ["ungm.org"],
+    "enabled": false
+  },
+  {
+    "name": "vietnam-go4wb-wire-mesh-buyers",
+    "provider": "go4worldbusiness-buyer-listing",
+    "query": "Vietnam wire mesh procurement buyers and importers",
+    "url": "https://www.go4worldbusiness.com/buyers/viet-nam/wire-mesh-gratings.html",
+    "country": "Vietnam",
+    "product_interest": "wire mesh",
+    "allowed_domains": ["go4worldbusiness.com"],
+    "enabled": false
+  },
+  {
+    "name": "germany-go4wb-wire-mesh-buyers",
+    "provider": "go4worldbusiness-buyer-listing",
+    "query": "Germany wire mesh procurement buyers and importers",
+    "url": "https://www.go4worldbusiness.com/buyers/germany/wire-mesh-gratings.html",
+    "country": "Germany",
+    "product_interest": "wire mesh",
+    "allowed_domains": ["go4worldbusiness.com"],
+    "enabled": false
+  },
+  {
+    "name": "uae-go4wb-wire-mesh-buyers",
+    "provider": "go4worldbusiness-buyer-listing",
+    "query": "United Arab Emirates wire mesh procurement buyers and importers",
+    "url": "https://www.go4worldbusiness.com/buyers/united-arab-emirates/wire-mesh-gratings.html",
+    "country": "United Arab Emirates",
+    "product_interest": "wire mesh",
+    "allowed_domains": ["go4worldbusiness.com"],
+    "enabled": false
+  }
+]

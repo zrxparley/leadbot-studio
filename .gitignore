@@ -1,0 +1,10 @@
+.env
+.venv/
+.DS_Store
+__pycache__/
+*.py[cod]
+*.db
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+artifacts/lead_runs/

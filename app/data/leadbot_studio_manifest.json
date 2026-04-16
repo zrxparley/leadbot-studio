@@ -1,0 +1,583 @@
+{
+  "metadata": {
+    "studio_id": "leadbot-studio",
+    "studio_name": "LeadBot Studio",
+    "description": "A reusable OpenClaw control plane for coordinating specialist AgentBots.",
+    "version": "0.1.0"
+  },
+  "defaults": {
+    "timezone": "Asia/Shanghai",
+    "openclaw_home": "~/.openclaw",
+    "default_model": "gpt-5.4",
+    "default_channel": "telegram"
+  },
+  "lead_bot": {
+    "id": "studio-lead",
+    "type": "lead",
+    "role": "Studio Lead",
+    "objective": "Plan work, route tasks to the right specialists, enforce approvals, and deliver outputs.",
+    "identity": {
+      "display_name": "LeadBot",
+      "avatar": "https://example.com/avatars/leadbot.png",
+      "remark": "Main coordination bot for the studio."
+    },
+    "workspace": {
+      "root": "~/.openclaw/workspace-studio-lead",
+      "soul_path": "~/.openclaw/workspace-studio-lead/SOUL.md",
+      "agents_path": "~/.openclaw/workspace-studio-lead/AGENTS.md",
+      "user_path": "~/.openclaw/workspace-studio-lead/USER.md",
+      "skills_dir": "~/.openclaw/workspace-studio-lead/skills",
+      "notes": "Control-plane workspace with governance rules and handoff standards."
+    },
+    "capabilities": [
+      "workflow planning",
+      "agent dispatch",
+      "approval routing",
+      "handoff governance"
+    ],
+    "skills": [
+      {
+        "slug": "workflow-manager",
+        "name": "Workflow Manager",
+        "source": "custom",
+        "enabled": true,
+        "purpose": "Compile flow definitions into dispatch plans and review gates.",
+        "debug_notes": "Trace handoff packets before enabling proactive execution."
+      },
+      {
+        "slug": "openclaw-export",
+        "name": "OpenClaw Exporter",
+        "source": "custom",
+        "enabled": true,
+        "purpose": "Export LeadBot Studio metadata into OpenClaw-aligned config starters."
+      }
+    ],
+    "tool_policy": {
+      "allow": [
+        "read",
+        "message",
+        "cron",
+        "sessions_list",
+        "sessions_history"
+      ],
+      "deny": [
+        "write",
+        "edit",
+        "apply_patch"
+      ],
+      "sandbox_mode": "agent",
+      "sandbox_scope": "agent"
+    },
+    "bindings": [
+      {
+        "channel": "telegram",
+        "account_id": "studio",
+        "peer_kind": "group",
+        "peer_id": "-1001234567890",
+        "topic_id": "1",
+        "notes": "Default control room topic."
+      }
+    ],
+    "handoff_tags": [
+      "brief",
+      "handoff",
+      "approval",
+      "done"
+    ],
+    "notes": "LeadBot owns all workflow approvals and exception handling.",
+    "metadata": {
+      "team": "core-studio",
+      "visibility": "internal"
+    },
+    "coordination_style": "manager",
+    "manages_agents": [
+      "researcher",
+      "builder",
+      "qa",
+      "publisher"
+    ],
+    "workflow_ids": [
+      "build-delivery",
+      "research-briefing"
+    ],
+    "governance": {
+      "approval_mode": "leadbot_review",
+      "hard_blocks": [
+        "Never send external outreach without an approved workflow step.",
+        "Never grant credentials or change identity provider settings."
+      ],
+      "escalation_targets": [
+        "human-owner"
+      ],
+      "audit_requirements": [
+        "Log all workflow dispatches.",
+        "Retain handoff packets for postmortems."
+      ],
+      "a2a_allow": [
+        "researcher",
+        "builder",
+        "qa",
+        "publisher"
+      ]
+    }
+  },
+  "agents": [
+    {
+      "id": "researcher",
+      "role": "Research Specialist",
+      "objective": "Find sources, collect context, and produce research packets for downstream agents.",
+      "identity": {
+        "display_name": "ResearchBot",
+        "avatar": "https://example.com/avatars/researchbot.png",
+        "remark": "Best used for sourcing and discovery."
+      },
+      "workspace": {
+        "root": "~/.openclaw/workspace-researcher",
+        "soul_path": "~/.openclaw/workspace-researcher/SOUL.md",
+        "agents_path": "~/.openclaw/workspace-researcher/AGENTS.md",
+        "skills_dir": "~/.openclaw/workspace-researcher/skills"
+      },
+      "capabilities": [
+        "web research",
+        "source triage",
+        "evidence packets"
+      ],
+      "skills": [
+        {
+          "slug": "web-research",
+          "name": "Web Research",
+          "source": "builtin",
+          "enabled": true,
+          "purpose": "Collect relevant sources and produce summaries."
+        }
+      ],
+      "tool_policy": {
+        "allow": [
+          "read",
+          "browser",
+          "message"
+        ],
+        "deny": [
+          "apply_patch"
+        ],
+        "sandbox_mode": "workspace",
+        "sandbox_scope": "agent"
+      },
+      "bindings": [],
+      "handoff_tags": [
+        "research",
+        "sources"
+      ],
+      "notes": "Can be invoked by LeadBot or by BuilderBot for clarifications.",
+      "metadata": {
+        "discipline": "research"
+      }
+    },
+    {
+      "id": "builder",
+      "role": "Build Specialist",
+      "objective": "Implement specs and ship working code or automation assets.",
+      "identity": {
+        "display_name": "BuilderBot",
+        "avatar": "https://example.com/avatars/builderbot.png",
+        "remark": "Owns implementation and patch generation."
+      },
+      "workspace": {
+        "root": "~/.openclaw/workspace-builder",
+        "soul_path": "~/.openclaw/workspace-builder/SOUL.md",
+        "agents_path": "~/.openclaw/workspace-builder/AGENTS.md",
+        "skills_dir": "~/.openclaw/workspace-builder/skills"
+      },
+      "capabilities": [
+        "coding",
+        "automation building",
+        "artifact assembly"
+      ],
+      "skills": [
+        {
+          "slug": "code",
+          "name": "Code",
+          "source": "local",
+          "enabled": true,
+          "purpose": "Implement code changes with verification discipline."
+        }
+      ],
+      "tool_policy": {
+        "allow": [
+          "read",
+          "write",
+          "edit",
+          "apply_patch",
+          "exec",
+          "message"
+        ],
+        "deny": [],
+        "sandbox_mode": "workspace",
+        "sandbox_scope": "agent"
+      },
+      "bindings": [],
+      "handoff_tags": [
+        "build",
+        "patch",
+        "artifact"
+      ],
+      "notes": "Primary executor for production tasks.",
+      "metadata": {
+        "discipline": "engineering"
+      }
+    },
+    {
+      "id": "qa",
+      "role": "QA Specialist",
+      "objective": "Review outputs, run checks, and report risks before release.",
+      "identity": {
+        "display_name": "QABot",
+        "avatar": "https://example.com/avatars/qabot.png",
+        "remark": "Focused on validation and regressions."
+      },
+      "workspace": {
+        "root": "~/.openclaw/workspace-qa",
+        "soul_path": "~/.openclaw/workspace-qa/SOUL.md",
+        "agents_path": "~/.openclaw/workspace-qa/AGENTS.md",
+        "skills_dir": "~/.openclaw/workspace-qa/skills"
+      },
+      "capabilities": [
+        "testing",
+        "review",
+        "risk assessment"
+      ],
+      "skills": [
+        {
+          "slug": "checks",
+          "name": "Checks",
+          "source": "custom",
+          "enabled": true,
+          "purpose": "Run structured verification suites and summarize findings.",
+          "debug_notes": "Keep failure logs attached to the run summary."
+        }
+      ],
+      "tool_policy": {
+        "allow": [
+          "read",
+          "exec",
+          "message"
+        ],
+        "deny": [
+          "apply_patch"
+        ],
+        "sandbox_mode": "workspace",
+        "sandbox_scope": "agent"
+      },
+      "bindings": [],
+      "handoff_tags": [
+        "qa",
+        "review",
+        "risk"
+      ],
+      "notes": "Second-stage reviewer before publication or deployment.",
+      "metadata": {
+        "discipline": "quality"
+      }
+    },
+    {
+      "id": "publisher",
+      "role": "Delivery Specialist",
+      "objective": "Package and distribute approved outputs to the final destination.",
+      "identity": {
+        "display_name": "PublisherBot",
+        "avatar": "https://example.com/avatars/publisherbot.png",
+        "remark": "Handles distribution and final delivery."
+      },
+      "workspace": {
+        "root": "~/.openclaw/workspace-publisher",
+        "soul_path": "~/.openclaw/workspace-publisher/SOUL.md",
+        "agents_path": "~/.openclaw/workspace-publisher/AGENTS.md",
+        "skills_dir": "~/.openclaw/workspace-publisher/skills"
+      },
+      "capabilities": [
+        "publishing",
+        "delivery",
+        "handoff completion"
+      ],
+      "skills": [
+        {
+          "slug": "distribution",
+          "name": "Distribution",
+          "source": "custom",
+          "enabled": true,
+          "purpose": "Deliver approved outputs to channels, repos, or stakeholders."
+        }
+      ],
+      "tool_policy": {
+        "allow": [
+          "read",
+          "message",
+          "cron"
+        ],
+        "deny": [
+          "apply_patch"
+        ],
+        "sandbox_mode": "agent",
+        "sandbox_scope": "agent"
+      },
+      "bindings": [
+        {
+          "channel": "telegram",
+          "account_id": "studio",
+          "peer_kind": "group",
+          "peer_id": "-1001234567890",
+          "topic_id": "3",
+          "notes": "Delivery lane."
+        }
+      ],
+      "handoff_tags": [
+        "publish",
+        "deliver",
+        "announce"
+      ],
+      "notes": "Only runs after LeadBot approval.",
+      "metadata": {
+        "discipline": "delivery"
+      }
+    }
+  ],
+  "workflows": [
+    {
+      "id": "build-delivery",
+      "name": "Build Delivery",
+      "description": "Turn a request into a reviewed and delivered artifact.",
+      "trigger": "Incoming build request in the control room.",
+      "lead_agent_id": "studio-lead",
+      "participants": [
+        {
+          "agent_id": "studio-lead",
+          "mode": "lead",
+          "responsibility": "Scope the task and approve gates.",
+          "required_skills": [
+            "workflow-manager"
+          ]
+        },
+        {
+          "agent_id": "builder",
+          "mode": "owner",
+          "responsibility": "Implement the requested output.",
+          "required_skills": [
+            "code"
+          ]
+        },
+        {
+          "agent_id": "qa",
+          "mode": "reviewer",
+          "responsibility": "Validate quality and regressions.",
+          "required_skills": [
+            "checks"
+          ]
+        },
+        {
+          "agent_id": "publisher",
+          "mode": "support",
+          "responsibility": "Distribute approved artifacts.",
+          "required_skills": [
+            "distribution"
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "intake",
+          "name": "Lead intake",
+          "step_type": "intake",
+          "owner_agent_id": "studio-lead",
+          "objective": "Clarify request scope and select the specialist team.",
+          "deliverables": [
+            "task brief",
+            "success criteria"
+          ],
+          "handoff_to": [
+            "builder"
+          ],
+          "approval_required": false
+        },
+        {
+          "id": "build",
+          "name": "Implementation",
+          "step_type": "build",
+          "owner_agent_id": "builder",
+          "depends_on": [
+            "intake"
+          ],
+          "objective": "Produce the requested output and attach implementation notes.",
+          "deliverables": [
+            "working artifact",
+            "implementation summary"
+          ],
+          "handoff_to": [
+            "qa"
+          ],
+          "approval_required": false
+        },
+        {
+          "id": "review",
+          "name": "Quality review",
+          "step_type": "qa",
+          "owner_agent_id": "qa",
+          "depends_on": [
+            "build"
+          ],
+          "objective": "Verify the artifact and raise findings if needed.",
+          "deliverables": [
+            "verification report"
+          ],
+          "handoff_to": [
+            "studio-lead",
+            "publisher"
+          ],
+          "approval_required": true
+        },
+        {
+          "id": "deliver",
+          "name": "Approved delivery",
+          "step_type": "publish",
+          "owner_agent_id": "publisher",
+          "depends_on": [
+            "review"
+          ],
+          "objective": "Deliver the approved artifact to the designated channel.",
+          "deliverables": [
+            "delivery confirmation"
+          ],
+          "handoff_to": [
+            "studio-lead"
+          ],
+          "approval_required": false
+        }
+      ],
+      "outputs": [
+        "artifact",
+        "verification report",
+        "delivery confirmation"
+      ],
+      "success_criteria": [
+        "The artifact is produced.",
+        "QA has signed off or raised tracked findings.",
+        "LeadBot has an audit trail for every handoff."
+      ],
+      "tags": [
+        "build",
+        "delivery"
+      ]
+    },
+    {
+      "id": "research-briefing",
+      "name": "Research Briefing",
+      "description": "Collect sources, synthesize them, and deliver a structured briefing.",
+      "trigger": "A topic brief or trend-monitoring request from the operator.",
+      "lead_agent_id": "studio-lead",
+      "participants": [
+        {
+          "agent_id": "studio-lead",
+          "mode": "lead",
+          "responsibility": "Own output framing and final approval.",
+          "required_skills": [
+            "workflow-manager"
+          ]
+        },
+        {
+          "agent_id": "researcher",
+          "mode": "owner",
+          "responsibility": "Collect and package source material.",
+          "required_skills": [
+            "web-research"
+          ]
+        },
+        {
+          "agent_id": "publisher",
+          "mode": "support",
+          "responsibility": "Send the final briefing to the delivery lane.",
+          "required_skills": [
+            "distribution"
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "id": "triage",
+          "name": "Brief triage",
+          "step_type": "intake",
+          "owner_agent_id": "studio-lead",
+          "objective": "Frame the research question and the expected output format.",
+          "deliverables": [
+            "research brief"
+          ],
+          "handoff_to": [
+            "researcher"
+          ]
+        },
+        {
+          "id": "research-pass",
+          "name": "Source collection",
+          "step_type": "research",
+          "owner_agent_id": "researcher",
+          "depends_on": [
+            "triage"
+          ],
+          "objective": "Collect relevant sources and synthesize the key findings.",
+          "deliverables": [
+            "source list",
+            "research packet"
+          ],
+          "handoff_to": [
+            "studio-lead"
+          ]
+        },
+        {
+          "id": "approval",
+          "name": "Lead approval",
+          "step_type": "review",
+          "owner_agent_id": "studio-lead",
+          "depends_on": [
+            "research-pass"
+          ],
+          "objective": "Approve the final briefing or request a follow-up pass.",
+          "deliverables": [
+            "approved briefing"
+          ],
+          "handoff_to": [
+            "publisher"
+          ],
+          "approval_required": true
+        },
+        {
+          "id": "send",
+          "name": "Distribution",
+          "step_type": "publish",
+          "owner_agent_id": "publisher",
+          "depends_on": [
+            "approval"
+          ],
+          "objective": "Distribute the final briefing.",
+          "deliverables": [
+            "distribution log"
+          ],
+          "handoff_to": [
+            "studio-lead"
+          ]
+        }
+      ],
+      "outputs": [
+        "research packet",
+        "approved briefing",
+        "distribution log"
+      ],
+      "success_criteria": [
+        "Sources are traceable.",
+        "LeadBot approves the final message.",
+        "The delivery channel receives the briefing."
+      ],
+      "tags": [
+        "research",
+        "briefing"
+      ]
+    }
+  ]
+}
