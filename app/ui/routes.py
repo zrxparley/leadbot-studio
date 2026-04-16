@@ -542,6 +542,15 @@ CONSOLE_HTML = """<!DOCTYPE html>
         font-size: 0.82rem;
       }
 
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "SFMono-Regular", "Menlo", "Monaco", monospace;
+        font-size: 0.82rem;
+        line-height: 1.65;
+      }
+
       @media (max-width: 1180px) {
         .hero,
         .layout,
@@ -613,6 +622,16 @@ CONSOLE_HTML = """<!DOCTYPE html>
             <h3>Workflow Steps</h3>
             <div id="workflowSteps"></div>
           </div>
+          <div class="section">
+            <div class="split">
+              <h3>OpenClaw Export</h3>
+              <button class="secondary" id="copyExportButton" type="button">Copy JSON</button>
+            </div>
+            <div id="exportMeta"></div>
+            <div class="control-card" style="margin-top: 14px;">
+              <pre id="exportPayload"></pre>
+            </div>
+          </div>
         </div>
 
         <div class="panel">
@@ -647,6 +666,7 @@ CONSOLE_HTML = """<!DOCTYPE html>
         runs: [],
         selectedWorkflowId: null,
         selectedRunId: null,
+        exportBundle: null,
       };
 
       const elements = {
@@ -664,6 +684,9 @@ CONSOLE_HTML = """<!DOCTYPE html>
         runInput: document.getElementById("runInput"),
         openDocsButton: document.getElementById("openDocsButton"),
         runActionStatus: document.getElementById("runActionStatus"),
+        exportMeta: document.getElementById("exportMeta"),
+        exportPayload: document.getElementById("exportPayload"),
+        copyExportButton: document.getElementById("copyExportButton"),
       };
 
       const RUN_TRANSITIONS = {
@@ -825,6 +848,37 @@ CONSOLE_HTML = """<!DOCTYPE html>
         });
       }
 
+      function renderOpenClawExport() {
+        if (!state.exportBundle) {
+          elements.exportMeta.innerHTML = '<div class="empty">No export loaded yet.</div>';
+          elements.exportPayload.textContent = "";
+          return;
+        }
+
+        const exportBundle = state.exportBundle;
+        const workflowCount = (exportBundle.workflows || []).length;
+        const bindingCount = (exportBundle.bindings || []).length;
+        const agentCount = (exportBundle.agents?.list || []).length;
+        const leadBot = exportBundle.coordination?.leadBot || {};
+
+        elements.exportMeta.innerHTML = `
+          <div class="pill-row">
+            <span class="pill">${escapeHtml(agentCount)} agents</span>
+            <span class="pill">${escapeHtml(bindingCount)} bindings</span>
+            <span class="pill">${escapeHtml(workflowCount)} workflows</span>
+          </div>
+          <div class="meta" style="margin-top: 12px;">
+            LeadBot ${escapeHtml(leadBot.id || "unknown")} manages
+            ${escapeHtml((leadBot.managesAgents || []).length)} specialists with
+            ${escapeHtml(humanizeStatus(leadBot.approvalMode || "unknown"))} governance.
+          </div>
+          <div class="meta">
+            A2A allowlist: ${escapeHtml((leadBot.a2aAllow || []).join(", ") || "None")}
+          </div>
+        `;
+        elements.exportPayload.textContent = JSON.stringify(exportBundle, null, 2);
+      }
+
       function renderRuns() {
         if (!state.runs.length) {
           elements.runsList.innerHTML = '<div class="empty">No runs yet. Create one from the workflow panel.</div>';
@@ -906,14 +960,16 @@ CONSOLE_HTML = """<!DOCTYPE html>
         elements.runCreateStatus.textContent = "Refreshing studio…";
         elements.runActionStatus.textContent = "";
         try {
-          const [summary, agents, workflows] = await Promise.all([
+          const [summary, agents, workflows, exportBundle] = await Promise.all([
             fetchJson("/studio/summary"),
             fetchJson("/studio/agents"),
             fetchJson("/studio/workflows"),
+            fetchJson("/studio/openclaw/export"),
           ]);
           state.summary = summary;
           state.agents = agents;
           state.workflows = workflows;
+          state.exportBundle = exportBundle;
           if (!state.selectedWorkflowId && workflows.length) {
             state.selectedWorkflowId = workflows[0].id;
           } else if (state.selectedWorkflowId && !workflows.some((item) => item.id === state.selectedWorkflowId)) {
@@ -921,6 +977,7 @@ CONSOLE_HTML = """<!DOCTYPE html>
           }
           renderSummary();
           renderAgents();
+          renderOpenClawExport();
           await selectWorkflow(state.selectedWorkflowId, { loadRuns: true });
           elements.runCreateStatus.textContent = "Studio refreshed.";
         } catch (error) {
@@ -1137,6 +1194,19 @@ CONSOLE_HTML = """<!DOCTYPE html>
       elements.createRunButton.addEventListener("click", createRun);
       elements.openDocsButton.addEventListener("click", () => {
         window.open("/docs", "_blank", "noopener,noreferrer");
+      });
+      elements.copyExportButton.addEventListener("click", async () => {
+        if (!state.exportBundle) {
+          elements.runActionStatus.textContent = "Refresh the studio before copying export JSON.";
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(state.exportBundle, null, 2));
+          elements.runActionStatus.textContent = "OpenClaw export copied.";
+        } catch (error) {
+          console.error(error);
+          elements.runActionStatus.textContent = "Clipboard copy failed.";
+        }
       });
 
       refreshAll();

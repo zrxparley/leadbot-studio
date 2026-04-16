@@ -24,3 +24,5 @@ def test_console_page_renders():
     assert "Step Controls" in response.text
     assert "Apply Run Status" in response.text
     assert "Update Step" in response.text
+    assert "OpenClaw Export" in response.text
+    assert "Copy JSON" in response.text
