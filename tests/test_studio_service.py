@@ -1,8 +1,10 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 
-from app.studio.schemas import StudioManifest, WorkflowRunRequest
+from app.core.config import Settings
+from app.studio.schemas import LeadBotModelDraftResponse, StudioManifest, WorkflowRunRequest
 from app.studio.service import (
     AgentNotFoundError,
     EntityConflictError,
@@ -188,6 +190,9 @@ def test_leadbot_can_draft_connected_agents_and_workflow_from_brief(tmp_path):
     assert workflow.steps[0].id == "intake"
     assert any(step.id == "deliver" for step in workflow.steps)
     assert any(step.approval_required for step in workflow.steps)
+    assert draft.draft_source == "deterministic"
+    assert draft.conversation[-1].role == "operator"
+    assert draft.suggested_next_prompts
 
 
 def test_apply_leadbot_draft_can_update_existing_studio(tmp_path):
@@ -214,3 +219,159 @@ def test_apply_leadbot_draft_can_update_existing_studio(tmp_path):
     assert any(
         workflow.id in result.created_workflows for workflow in manifest.workflows
     )
+
+
+def test_leadbot_can_use_model_backed_drafting_with_refinement_context(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    settings = Settings(
+        leadbot_draft_provider="openai",
+        leadbot_draft_model="gpt-5.4",
+        openai_api_key="test-key",
+    )
+    service = StudioManifestService(str(manifest_path), settings=settings)
+    captured_request: dict[str, object] = {}
+
+    class FakeResponses:
+        def parse(self, **kwargs):
+            captured_request.update(kwargs)
+            payload = {
+                "studio_name": "LeadBot Launch Studio",
+                "leadbot_response": "我把这次工作室草案改成了更偏发布驱动的形态。",
+                "rationale": [
+                    "The operator asked for a launch-oriented workflow.",
+                    "The existing draft already had the right core agents, so LeadBot refined it instead of rebuilding from scratch.",
+                ],
+                "suggested_next_prompts": [
+                    "把发布前的 QA 提前一轮。",
+                    "再加一个负责社媒分发的 Agent。",
+                ],
+                "agents": [
+                    {
+                        "id": "researcher",
+                        "display_name": "Launch Researcher",
+                        "role": "Launch Research Specialist",
+                        "objective": "Find launch angles and gather proof points.",
+                        "template_hint": "researcher",
+                        "remark": "Own the signal-gathering pass.",
+                        "capabilities": ["launch research", "proof gathering"],
+                        "skills": [
+                            {
+                                "slug": "launch-research",
+                                "name": "Launch Research",
+                                "purpose": "Shape the launch brief.",
+                            }
+                        ],
+                        "handoff_tags": ["launch-brief"],
+                    },
+                    {
+                        "id": "publisher",
+                        "display_name": "Launch Publisher",
+                        "role": "Launch Publishing Specialist",
+                        "objective": "Package and distribute the launch assets.",
+                        "template_hint": "publisher",
+                        "remark": "Own outbound launch delivery.",
+                        "capabilities": ["launch packaging", "distribution"],
+                    },
+                ],
+                "workflow": {
+                    "id": "launch-flow",
+                    "name": "Launch Flow",
+                    "description": "LeadBot-managed launch workflow.",
+                    "trigger": "Operator asks for a launch studio.",
+                    "participants": [
+                        {
+                            "agent_id": "researcher",
+                            "mode": "owner",
+                            "responsibility": "Own launch research.",
+                            "required_skills": ["launch-research"],
+                        },
+                        {
+                            "agent_id": "publisher",
+                            "mode": "owner",
+                            "responsibility": "Own publishing and distribution.",
+                        },
+                    ],
+                    "steps": [
+                        {
+                            "id": "intake",
+                            "name": "Lead Intake",
+                            "step_type": "intake",
+                            "owner_agent_id": "studio-lead",
+                            "objective": "Set launch priorities.",
+                            "deliverables": ["launch brief"],
+                            "handoff_to": ["researcher"],
+                        },
+                        {
+                            "id": "research-pass",
+                            "name": "Launch Research",
+                            "step_type": "research",
+                            "owner_agent_id": "researcher",
+                            "depends_on": ["intake"],
+                            "objective": "Build the launch brief.",
+                            "deliverables": ["launch insights"],
+                            "handoff_to": ["publisher"],
+                        },
+                        {
+                            "id": "release",
+                            "name": "Launch Release",
+                            "step_type": "publish",
+                            "owner_agent_id": "publisher",
+                            "depends_on": ["research-pass"],
+                            "objective": "Distribute the launch assets.",
+                            "deliverables": ["launch package"],
+                            "handoff_to": ["studio-lead"],
+                            "approval_required": True,
+                        },
+                    ],
+                    "outputs": ["launch package"],
+                    "success_criteria": ["Launch assets are ready for operator review."],
+                    "tags": ["launch", "model"],
+                },
+            }
+            return SimpleNamespace(
+                output_parsed=LeadBotModelDraftResponse.model_validate(payload)
+            )
+
+    service._build_openai_client = lambda: SimpleNamespace(responses=FakeResponses())
+
+    draft = service.draft_studio_from_brief(
+        {
+            "brief": "把这个工作室改成发布优先，并减少开发步骤。",
+            "conversation": [
+                {"role": "operator", "content": "先给我起一个工作室。"},
+                {"role": "leadbot", "content": "我已经起草了一版基础工作室。"},
+            ],
+            "current_draft": {
+                "studio_name": "Draft Studio",
+                "brief": "先给我起一个工作室。",
+                "leadbot_response": "旧草案",
+                "suggested_agents": [],
+                "suggested_workflows": [],
+            },
+        }
+    )
+
+    assert draft.draft_source == "model"
+    assert draft.suggested_agents[0].identity.display_name == "Launch Researcher"
+    assert draft.suggested_workflows[0].steps[-1].approval_required is True
+    assert draft.conversation[-1].role == "leadbot"
+    encoded_input = json.loads(captured_request["input"][1]["content"])
+    assert encoded_input["current_draft"]["studio_name"] == "Draft Studio"
+    assert len(encoded_input["conversation"]) == 2
+
+
+def test_leadbot_model_failure_falls_back_to_builtin_planner(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    settings = Settings(
+        leadbot_draft_provider="openai",
+        openai_api_key="test-key",
+    )
+    service = StudioManifestService(str(manifest_path), settings=settings)
+    service._build_openai_client = lambda: SimpleNamespace(
+        responses=SimpleNamespace(parse=lambda **kwargs: (_ for _ in ()).throw(RuntimeError("boom")))
+    )
+
+    draft = service.draft_studio_from_brief({"brief": "Build a studio for launch operations."})
+
+    assert draft.draft_source == "fallback"
+    assert any("fallback" in item.lower() for item in draft.rationale)

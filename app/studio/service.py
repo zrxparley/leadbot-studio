@@ -3,17 +3,23 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
 from typing import Any
+from uuid import uuid4
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.studio.schemas import (
     AgentBot,
     BotIdentity,
     LeadBot,
+    LeadBotConversationTurn,
     LeadBotDraftApplyRequest,
     LeadBotDraftApplyResult,
     LeadBotDraftBundle,
+    LeadBotModelAgentDraft,
+    LeadBotModelDraftResponse,
+    LeadBotModelSkillDraft,
+    LeadBotModelWorkflowDraft,
+    LeadBotModelWorkflowParticipantDraft,
     LeadBotDraftRequest,
     SkillAttachment,
     StudioManifest,
@@ -42,6 +48,10 @@ class EntityConflictError(ValueError):
 
 class EntityInUseError(ValueError):
     """Raised when a delete would leave dangling references behind."""
+
+
+class LeadBotModelDraftError(RuntimeError):
+    """Raised when model-backed drafting fails before a fallback can be used."""
 
 
 class StudioManifestRepository:
@@ -78,7 +88,12 @@ class StudioManifestRepository:
 
 
 class StudioManifestService:
-    def __init__(self, manifest_path: str | None = None) -> None:
+    def __init__(
+        self,
+        manifest_path: str | None = None,
+        settings: Settings | None = None,
+    ) -> None:
+        self.settings = settings or get_settings()
         self.repository = StudioManifestRepository(manifest_path)
 
     def load_manifest(self) -> StudioManifest:
@@ -96,7 +111,32 @@ class StudioManifestService:
             if isinstance(request, LeadBotDraftRequest)
             else LeadBotDraftRequest.model_validate(request)
         )
-        brief = prompt.brief.strip()
+        if self._should_use_model(prompt):
+            try:
+                return self._draft_with_model(prompt, manifest)
+            except Exception as exc:
+                fallback = self._draft_with_rules(prompt, manifest)
+                fallback.draft_source = "fallback"
+                fallback.rationale.insert(
+                    0,
+                    "Model drafting was unavailable for this pass, so LeadBot used the built-in planner as a safe fallback.",
+                )
+                fallback.rationale.append(
+                    f"Fallback reason: {exc.__class__.__name__}."
+                )
+                fallback.leadbot_response = (
+                    "我先尝试了模型协同起草，但这次没有成功，所以先用稳定的内置编排器给你起了一版可用草案。"
+                    "你可以继续用自然语言细化，我会在下一轮继续尝试模型生成。"
+                )
+                return fallback
+        return self._draft_with_rules(prompt, manifest)
+
+    def _draft_with_rules(
+        self,
+        request: LeadBotDraftRequest,
+        manifest: StudioManifest,
+    ) -> LeadBotDraftBundle:
+        brief = request.brief.strip()
         brief_lower = brief.lower()
         templates = _select_agent_templates_for_brief(brief_lower)
         agents = [
@@ -108,15 +148,191 @@ class StudioManifestService:
         return LeadBotDraftBundle(
             studio_name=_infer_studio_name(brief),
             brief=brief,
+            draft_source="deterministic",
             leadbot_response=(
-                f"我根据这段需求起草了 {len(agents)} 个 specialist agents 和 "
-                f"{len([workflow])} 条 workflow。"
-                "它们已经按研究、执行、校验、发布的节奏接好了依赖，你可以直接应用再微调。"
+                f"我根据这段需求起草了 {len(agents)} 个 specialist agents 和 1 条 workflow。"
+                "它们已经按研究、执行、校验、发布的节奏接好了依赖，你可以直接应用，或者继续告诉 LeadBot 你想怎么改。"
             ),
             rationale=rationale,
+            conversation=_build_draft_conversation(request),
+            suggested_next_prompts=_build_follow_up_suggestions(templates, workflow),
             suggested_agents=agents,
             suggested_workflows=[workflow],
         )
+
+    def _draft_with_model(
+        self,
+        request: LeadBotDraftRequest,
+        manifest: StudioManifest,
+    ) -> LeadBotDraftBundle:
+        client = self._build_openai_client()
+        model_response = client.responses.parse(
+            model=self.settings.leadbot_draft_model,
+            input=self._build_model_input(request, manifest),
+            text_format=LeadBotModelDraftResponse,
+        )
+        parsed = model_response.output_parsed
+        if parsed is None:
+            raise LeadBotModelDraftError("Structured output was empty.")
+        return self._hydrate_model_draft(request, manifest, parsed)
+
+    def _hydrate_model_draft(
+        self,
+        request: LeadBotDraftRequest,
+        manifest: StudioManifest,
+        model_draft: LeadBotModelDraftResponse,
+    ) -> LeadBotDraftBundle:
+        agent_id_map: dict[str, str] = {}
+        agents: list[AgentBot] = []
+        existing_ids = {manifest.lead_bot.id}
+        for agent_draft in model_draft.agents:
+            agent = _build_agent_from_model_draft(
+                agent_draft,
+                brief=request.brief.strip(),
+                openclaw_home=manifest.defaults.openclaw_home,
+                existing_ids=existing_ids,
+            )
+            agent_id_map[agent_draft.id] = agent.id
+            existing_ids.add(agent.id)
+            agents.append(agent)
+
+        workflow = _build_workflow_from_model_draft(
+            model_draft.workflow,
+            brief=request.brief.strip(),
+            lead_bot=manifest.lead_bot,
+            agents=agents,
+            agent_id_map=agent_id_map,
+        )
+        return LeadBotDraftBundle(
+            studio_name=model_draft.studio_name or _infer_studio_name(request.brief),
+            brief=request.brief.strip(),
+            draft_source="model",
+            leadbot_response=model_draft.leadbot_response,
+            rationale=model_draft.rationale,
+            conversation=_build_draft_conversation(
+                request,
+                leadbot_message=model_draft.leadbot_response,
+            ),
+            suggested_next_prompts=(
+                model_draft.suggested_next_prompts
+                or _build_follow_up_suggestions(
+                    [agent.metadata.get("template", "custom") for agent in agents],
+                    workflow,
+                )
+            ),
+            suggested_agents=agents,
+            suggested_workflows=[workflow],
+        )
+
+    def _build_model_input(
+        self,
+        request: LeadBotDraftRequest,
+        manifest: StudioManifest,
+    ) -> list[dict[str, Any]]:
+        current_draft = None
+        if request.current_draft:
+            current_draft = LeadBotDraftBundle.model_validate(request.current_draft)
+        template_catalog = _agent_template_catalog(manifest.defaults.openclaw_home)
+        studio_context = {
+            "studio": manifest.metadata.model_dump(mode="json"),
+            "lead_bot": {
+                "id": manifest.lead_bot.id,
+                "display_name": manifest.lead_bot.identity.display_name,
+                "role": manifest.lead_bot.role,
+                "objective": manifest.lead_bot.objective,
+            },
+            "existing_agents": [
+                {
+                    "id": agent.id,
+                    "display_name": agent.identity.display_name,
+                    "role": agent.role,
+                    "capabilities": agent.capabilities,
+                }
+                for agent in manifest.agents
+            ],
+            "existing_workflows": [
+                {
+                    "id": workflow.id,
+                    "name": workflow.name,
+                    "steps": [step.id for step in workflow.steps],
+                }
+                for workflow in manifest.workflows
+            ],
+            "agent_templates": [
+                {
+                    "template": key,
+                    "id": value["id"],
+                    "display_name": value["display_name"],
+                    "role": value["role"],
+                    "capabilities": value["capabilities"],
+                }
+                for key, value in template_catalog.items()
+            ],
+            "allowed_participant_modes": ["lead", "owner", "support", "reviewer", "observer"],
+            "allowed_step_types": [
+                "intake",
+                "research",
+                "design",
+                "build",
+                "review",
+                "qa",
+                "publish",
+                "ops",
+                "custom",
+            ],
+        }
+        return [
+            {
+                "role": "system",
+                "content": (
+                    "You are LeadBot, an orchestration designer for OpenClaw-based studios. "
+                    "Turn the operator's natural-language intent into a compact but fully connected studio draft. "
+                    "Favor the smallest roster that can do the job well. Always keep LeadBot as the intake and final control loop. "
+                    "If an existing draft is provided, refine it instead of starting over unless the operator clearly asks for a reset. "
+                    "Return practical roles, explicit handoffs, and workflow steps that can be applied directly."
+                ),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(
+                    {
+                        "operator": request.operator,
+                        "brief": request.brief.strip(),
+                        "conversation": [turn.model_dump(mode="json") for turn in request.conversation],
+                        "current_draft": (
+                            current_draft.model_dump(mode="json")
+                            if current_draft is not None
+                            else None
+                        ),
+                        "studio_context": studio_context,
+                    },
+                    ensure_ascii=False,
+                ),
+            },
+        ]
+
+    def _should_use_model(self, request: LeadBotDraftRequest) -> bool:
+        if not request.prefer_model:
+            return False
+        provider = self.settings.leadbot_draft_provider.lower().strip()
+        if provider == "deterministic":
+            return False
+        if provider not in {"auto", "openai"}:
+            return False
+        return bool(self.settings.openai_api_key)
+
+    def _build_openai_client(self) -> Any:
+        if not self.settings.openai_api_key:
+            raise LeadBotModelDraftError("OPENAI_API_KEY is not configured.")
+        try:
+            from openai import OpenAI
+        except ImportError as exc:
+            raise LeadBotModelDraftError("openai package is not installed.") from exc
+
+        client_kwargs: dict[str, Any] = {"api_key": self.settings.openai_api_key}
+        if self.settings.openai_base_url:
+            client_kwargs["base_url"] = self.settings.openai_base_url
+        return OpenAI(**client_kwargs)
 
     def apply_draft_bundle(
         self,
@@ -973,6 +1189,251 @@ def _build_draft_rationale(
     if any(template == "researcher" for template in templates):
         rationale.append("A research stage was added so downstream agents start from a structured brief.")
     return rationale
+
+
+def _build_draft_conversation(
+    request: LeadBotDraftRequest,
+    leadbot_message: str | None = None,
+) -> list[LeadBotConversationTurn]:
+    conversation = [turn for turn in request.conversation if turn.content.strip()]
+    if not conversation or conversation[-1].content.strip() != request.brief.strip():
+        conversation.append(
+            LeadBotConversationTurn(role="operator", content=request.brief.strip())
+        )
+    if leadbot_message:
+        conversation.append(LeadBotConversationTurn(role="leadbot", content=leadbot_message))
+    return conversation
+
+
+def _build_follow_up_suggestions(
+    templates: list[str],
+    workflow: WorkflowDefinition,
+) -> list[str]:
+    suggestions = [
+        "把 QA 改成只在最终交付前介入。",
+        "给我再加一个负责运营分发的 AgentBot。",
+        "把 workflow 改成内容优先，而不是开发优先。",
+    ]
+    if "publisher" not in templates:
+        suggestions.append("加一个发布 Agent，把最后一步做成渠道分发。")
+    if "researcher" in templates:
+        suggestions.append("把研究阶段拆成选题和素材验证两个步骤。")
+    if any(step.approval_required for step in workflow.steps):
+        suggestions.append("去掉中间审批，只保留最终 LeadBot 审核。")
+    return suggestions[:4]
+
+
+def _resolve_template_hint(agent_draft: LeadBotModelAgentDraft) -> str:
+    if agent_draft.template_hint != "custom":
+        return agent_draft.template_hint
+    fingerprint = " ".join(
+        [
+            agent_draft.id,
+            agent_draft.display_name,
+            agent_draft.role,
+            agent_draft.objective,
+            " ".join(agent_draft.capabilities),
+        ]
+    ).lower()
+    if any(keyword in fingerprint for keyword in ["research", "insight", "analysis", "brief", "调研", "研究"]):
+        return "researcher"
+    if any(keyword in fingerprint for keyword in ["qa", "review", "test", "quality", "校验", "审核"]):
+        return "qa"
+    if any(keyword in fingerprint for keyword in ["publish", "distribution", "launch", "content", "发布", "分发"]):
+        return "publisher"
+    return "builder"
+
+
+def _build_skill_attachments(
+    skills: list[LeadBotModelSkillDraft],
+    fallback: list[SkillAttachment],
+) -> list[SkillAttachment]:
+    if not skills:
+        return fallback
+    seen: set[str] = set()
+    attachments: list[SkillAttachment] = []
+    for skill in skills:
+        slug = _slugify(skill.slug or skill.name, "skill")
+        if slug in seen:
+            slug = _dedupe_slug(slug, seen)
+        seen.add(slug)
+        attachments.append(
+            SkillAttachment(
+                slug=slug,
+                name=skill.name.strip() or slug.replace("-", " ").title(),
+                purpose=skill.purpose.strip() or "Support the assigned workflow slice.",
+            )
+        )
+    return attachments
+
+
+def _build_agent_from_model_draft(
+    agent_draft: LeadBotModelAgentDraft,
+    brief: str,
+    openclaw_home: str,
+    existing_ids: set[str],
+) -> AgentBot:
+    template_key = _resolve_template_hint(agent_draft)
+    base_agent = _build_agent_from_template(template_key, brief, openclaw_home)
+    candidate_id = _slugify(agent_draft.id or agent_draft.display_name, template_key)
+    agent_id = _dedupe_slug(candidate_id, existing_ids)
+    workspace_root = f"{openclaw_home.rstrip('/')}/workspace-{agent_id}"
+    return base_agent.model_copy(
+        update={
+            "id": agent_id,
+            "role": agent_draft.role.strip() or base_agent.role,
+            "objective": agent_draft.objective.strip() or base_agent.objective,
+            "identity": BotIdentity(
+                display_name=agent_draft.display_name.strip() or base_agent.identity.display_name,
+                avatar=base_agent.identity.avatar,
+                remark=agent_draft.remark or base_agent.identity.remark,
+            ),
+            "workspace": WorkspaceProfile(
+                root=workspace_root,
+                soul_path=f"{workspace_root}/SOUL.md",
+                agents_path=f"{workspace_root}/AGENTS.md",
+                user_path=f"{workspace_root}/USER.md",
+                skills_dir=f"{workspace_root}/skills",
+                notes=agent_draft.notes or base_agent.workspace.notes,
+            ),
+            "capabilities": agent_draft.capabilities or base_agent.capabilities,
+            "skills": _build_skill_attachments(agent_draft.skills, base_agent.skills),
+            "handoff_tags": agent_draft.handoff_tags or base_agent.handoff_tags,
+            "notes": agent_draft.notes or base_agent.notes,
+            "metadata": {
+                **base_agent.metadata,
+                "template": template_key,
+                "origin": "leadbot-model",
+            },
+        }
+    )
+
+
+def _resolve_agent_reference(
+    candidate: str,
+    lead_bot: LeadBot,
+    agent_by_id: dict[str, AgentBot],
+    agent_id_map: dict[str, str],
+) -> str:
+    resolved = agent_id_map.get(candidate, candidate)
+    if resolved == lead_bot.id:
+        return lead_bot.id
+    if resolved in agent_by_id:
+        return resolved
+    slug_candidate = _slugify(candidate, "")
+    for agent_id in agent_by_id:
+        if agent_id == slug_candidate:
+            return agent_id
+    return next(iter(agent_by_id), lead_bot.id)
+
+
+def _build_workflow_from_model_draft(
+    workflow_draft: LeadBotModelWorkflowDraft,
+    brief: str,
+    lead_bot: LeadBot,
+    agents: list[AgentBot],
+    agent_id_map: dict[str, str],
+) -> WorkflowDefinition:
+    if not agents:
+        raise LeadBotModelDraftError("Model did not provide any specialist agents.")
+    agent_by_id = {agent.id: agent for agent in agents}
+    participants: list[WorkflowParticipant] = [
+        WorkflowParticipant(
+            agent_id=lead_bot.id,
+            mode="lead",
+            responsibility="Translate operator intent into delegated studio work and approve delivery.",
+            notes="LeadBot remains the intake and control loop.",
+        )
+    ]
+    seen_participants = {lead_bot.id}
+    participant_drafts = workflow_draft.participants or [
+        LeadBotModelWorkflowParticipantDraft(
+            agent_id=agent.id,
+            responsibility=f"Own the {agent.role.lower()} slice of the workflow.",
+            required_skills=[skill.slug for skill in agent.skills],
+            notes=agent.identity.remark,
+        )
+        for agent in agents
+    ]
+    for participant in participant_drafts:
+        agent_id = _resolve_agent_reference(
+            participant.agent_id,
+            lead_bot,
+            agent_by_id,
+            agent_id_map,
+        )
+        if agent_id in seen_participants:
+            continue
+        seen_participants.add(agent_id)
+        participants.append(
+            WorkflowParticipant(
+                agent_id=agent_id,
+                mode=participant.mode,
+                responsibility=participant.responsibility,
+                required_skills=participant.required_skills,
+                notes=participant.notes,
+            )
+        )
+
+    used_step_ids: set[str] = set()
+    step_id_map: dict[str, str] = {}
+    normalized_step_ids: list[str] = []
+    for index, step in enumerate(workflow_draft.steps, start=1):
+        candidate_id = _slugify(step.id or step.name, f"step-{index}")
+        normalized_id = _dedupe_slug(candidate_id, used_step_ids)
+        used_step_ids.add(normalized_id)
+        step_id_map[step.id] = normalized_id
+        normalized_step_ids.append(normalized_id)
+
+    steps: list[WorkflowStep] = []
+    for index, step in enumerate(workflow_draft.steps):
+        owner_agent_id = _resolve_agent_reference(
+            step.owner_agent_id,
+            lead_bot,
+            agent_by_id,
+            agent_id_map,
+        )
+        normalized_id = normalized_step_ids[index]
+        steps.append(
+            WorkflowStep(
+                id=normalized_id,
+                name=step.name,
+                step_type=step.step_type,
+                owner_agent_id=owner_agent_id,
+                depends_on=[
+                    step_id_map.get(dep, _slugify(dep, dep))
+                    for dep in step.depends_on
+                    if step_id_map.get(dep, _slugify(dep, dep)) in used_step_ids
+                ],
+                objective=step.objective,
+                instructions=step.instructions,
+                deliverables=step.deliverables,
+                handoff_to=[
+                    _resolve_agent_reference(target, lead_bot, agent_by_id, agent_id_map)
+                    for target in step.handoff_to
+                ],
+                approval_required=step.approval_required,
+            )
+        )
+
+    if not steps:
+        raise LeadBotModelDraftError("Model did not return any workflow steps.")
+
+    workflow_id = _slugify(workflow_draft.id or workflow_draft.name, "leadbot-flow")
+    return WorkflowDefinition(
+        id=workflow_id,
+        name=workflow_draft.name or f"{_infer_studio_name(brief)} Delivery Flow",
+        description=workflow_draft.description or f"LeadBot-generated workflow for: {brief}",
+        trigger=workflow_draft.trigger or brief,
+        lead_agent_id=lead_bot.id,
+        participants=participants,
+        steps=steps,
+        outputs=workflow_draft.outputs or ["final delivery", "operator-ready summary"],
+        success_criteria=workflow_draft.success_criteria or [
+            "LeadBot can coordinate the full workflow from intake to delivery."
+        ],
+        tags=workflow_draft.tags or ["leadbot-generated", "model-wired", "brief-driven"],
+    )
 
 
 def _default_manifest_payload() -> dict[str, Any]:

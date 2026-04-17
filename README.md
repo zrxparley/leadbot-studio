@@ -72,6 +72,8 @@ LeadBot 是控制平面，不是网关替代品。
 - Workflow Builder 可视化依赖编排，支持 step graph、依赖预览、拖拽排序
 - AgentBot Builder 模板系统，内置 Researcher / Developer / QA / Publisher 骨架
 - LeadBot 对话起草，可根据自然语言 brief 自动生成并接好 AgentBot / Workflow 草案
+- LeadBot 模型起草引擎，支持“模型优先，规则回退”
+- LeadBot 对话 refinement，可带着当前 draft 和对话历史继续用自然语言微调
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
 - 一个可直接 fork 的默认工作室模板
@@ -124,6 +126,17 @@ pip install -e .[dev]
 cp .env.example .env
 ```
 
+如果要启用模型驱动的 LeadBot draft，在 `.env` 中配置：
+
+```bash
+LEADBOT_DRAFT_PROVIDER=auto
+LEADBOT_DRAFT_MODEL=gpt-5.4
+OPENAI_API_KEY=your_key_here
+OPENAI_BASE_URL=
+```
+
+不配置时，LeadBot 仍然可以工作，只是会退回内置的确定性起草器。
+
 3. 启动服务
 
 ```bash
@@ -165,6 +178,12 @@ app/data/leadbot_studio_manifest.json
 
 你可以直接修改 manifest，把 bot 的名字、头像、技能、工作流、交付方式替换成你自己的工作室配置。
 
+现在也可以直接在 `/studio/console` 里和 LeadBot 对话，例如：
+
+- `我想做一个产品发布工作室，LeadBot 统筹，研究员负责素材，发布 Agent 负责多渠道分发。`
+- `把 QA 改成只在最终交付前介入。`
+- `再加一个运营 Agent，专门做上线后的复盘和数据回收。`
+
 ## OpenClaw 对接思路
 
 这个项目遵循一个原则：
@@ -180,6 +199,12 @@ app/data/leadbot_studio_manifest.json
 
 ```text
 docs/plans/2026-04-16-leadbot-studio-design.md
+```
+
+本轮关于模型起草和自然语言 vibe drafting 的设计补充在：
+
+```text
+docs/plans/2026-04-17-leadbot-vibe-drafting-design.md
 ```
 
 整体 roadmap 在：

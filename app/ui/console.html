@@ -844,6 +844,85 @@
         margin-top: 6px;
       }
 
+      .leadbot-chat {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .conversation-thread {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 14px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(249, 241, 231, 0.92)),
+          rgba(255, 255, 255, 0.7);
+        min-height: 160px;
+      }
+
+      .conversation-turn {
+        max-width: 92%;
+        padding: 14px 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+
+      .conversation-turn.operator {
+        align-self: flex-end;
+        background: linear-gradient(135deg, rgba(180, 82, 52, 0.12), rgba(255, 255, 255, 0.9));
+      }
+
+      .conversation-turn.leadbot {
+        align-self: flex-start;
+        background: linear-gradient(135deg, rgba(37, 94, 105, 0.12), rgba(255, 255, 255, 0.94));
+      }
+
+      .conversation-role {
+        display: inline-flex;
+        margin-bottom: 8px;
+        font-size: 0.78rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .leadbot-compose {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 14px;
+      }
+
+      .prompt-board {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .prompt-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .prompt-chip {
+        padding: 10px 14px;
+        border-radius: 999px;
+        border: 1px solid rgba(37, 94, 105, 0.18);
+        background: rgba(37, 94, 105, 0.08);
+        color: var(--accent-cool);
+        cursor: pointer;
+      }
+
+      .prompt-chip:hover {
+        border-color: rgba(37, 94, 105, 0.34);
+        background: rgba(37, 94, 105, 0.12);
+      }
+
       .loading {
         opacity: 0.64;
       }
@@ -862,7 +941,8 @@
         .summary-grid,
         .prelude,
         .template-grid,
-        .graph-stats {
+        .graph-stats,
+        .leadbot-compose {
           grid-template-columns: 1fr;
         }
 
@@ -949,15 +1029,36 @@
           <div class="section">
             <div class="collection-header">
               <h3>Talk to LeadBot</h3>
-              <span class="statusline">Describe the studio you want and let LeadBot draft the roster and flow wiring.</span>
+              <span class="statusline">Use natural language to shape the studio. LeadBot can draft, refine, and rewire the roster and workflow as the conversation evolves.</span>
             </div>
-            <div class="run-controls">
-              <textarea id="leadbotBriefInput" placeholder="例如：我想做一个内容增长工作室，LeadBot 统筹，研究员负责选题，开发负责自动化，QA 负责审校，发布负责上线分发。"></textarea>
-              <div class="button-row">
-                <button id="generateLeadbotDraftButton" type="button">Generate Studio Draft</button>
-                <button id="applyLeadbotDraftButton" class="secondary" type="button" disabled>Apply to Studio</button>
+            <div class="leadbot-chat">
+              <div id="leadbotConversationThread" class="conversation-thread"></div>
+              <div class="leadbot-compose">
+                <div class="run-controls">
+                  <textarea id="leadbotBriefInput" placeholder="例如：我想做一个内容增长工作室，LeadBot 统筹，研究员负责选题，开发负责自动化，QA 负责审校，发布负责上线分发。后面你也可以继续说：去掉 QA、加一个运营 Agent、把流程改成内容优先。"></textarea>
+                  <div class="button-row">
+                    <button id="generateLeadbotDraftButton" type="button">Send to LeadBot</button>
+                    <button id="resetLeadbotThreadButton" class="ghost" type="button">Reset Thread</button>
+                    <button id="applyLeadbotDraftButton" class="secondary" type="button" disabled>Apply to Studio</button>
+                  </div>
+                  <span id="leadbotDraftStatus" class="statusline"></span>
+                </div>
+                <div class="prompt-board">
+                  <div class="control-card">
+                    <div class="section-kicker">Vibe Prompts</div>
+                    <div class="meta" style="margin-top: 8px;">
+                      Ask for changes in plain language. LeadBot will keep the current draft in context and refine it instead of rebuilding from scratch.
+                    </div>
+                    <div id="leadbotSuggestionGrid" class="prompt-grid" style="margin-top: 12px;"></div>
+                  </div>
+                  <div class="control-card">
+                    <div class="section-kicker">Draft Mode</div>
+                    <div id="leadbotDraftModeMeta" class="meta" style="margin-top: 8px;">
+                      LeadBot will prefer model-backed drafting when configured and fall back safely when needed.
+                    </div>
+                  </div>
+                </div>
               </div>
-              <span id="leadbotDraftStatus" class="statusline"></span>
             </div>
             <div id="leadbotDraftPreview" class="draft-preview"></div>
           </div>
@@ -1060,6 +1161,7 @@
         selectedRunId: null,
         exportBundle: null,
         leadbotDraft: null,
+        leadbotThread: [],
         editor: {
           open: false,
           kind: null,
@@ -1093,8 +1195,12 @@
         copyExportButton: document.getElementById("copyExportButton"),
         leadbotBriefInput: document.getElementById("leadbotBriefInput"),
         generateLeadbotDraftButton: document.getElementById("generateLeadbotDraftButton"),
+        resetLeadbotThreadButton: document.getElementById("resetLeadbotThreadButton"),
         applyLeadbotDraftButton: document.getElementById("applyLeadbotDraftButton"),
         leadbotDraftStatus: document.getElementById("leadbotDraftStatus"),
+        leadbotConversationThread: document.getElementById("leadbotConversationThread"),
+        leadbotSuggestionGrid: document.getElementById("leadbotSuggestionGrid"),
+        leadbotDraftModeMeta: document.getElementById("leadbotDraftModeMeta"),
         leadbotDraftPreview: document.getElementById("leadbotDraftPreview"),
         editorShell: document.getElementById("editorShell"),
         editorTitle: document.getElementById("editorTitle"),
@@ -1673,6 +1779,13 @@
 
       function renderLeadBotDraft() {
         if (!state.leadbotDraft) {
+          state.leadbotThread = [];
+          elements.leadbotConversationThread.innerHTML =
+            '<div class="empty">Start with a plain-language request. LeadBot will keep the conversation and draft wiring together.</div>';
+          elements.leadbotSuggestionGrid.innerHTML =
+            '<span class="meta">LeadBot prompt suggestions will appear here after the first draft.</span>';
+          elements.leadbotDraftModeMeta.textContent =
+            "LeadBot will prefer model-backed drafting when configured and fall back safely when needed.";
           elements.leadbotDraftPreview.innerHTML =
             '<div class="empty">LeadBot draft preview will appear here after you describe the studio.</div>';
           elements.applyLeadbotDraftButton.disabled = true;
@@ -1680,11 +1793,46 @@
         }
 
         const draft = state.leadbotDraft;
+        state.leadbotThread = Array.isArray(draft.conversation) ? draft.conversation : [];
         elements.applyLeadbotDraftButton.disabled = false;
+        elements.leadbotConversationThread.innerHTML = state.leadbotThread.length
+          ? state.leadbotThread
+              .map(
+                (turn) => `
+                  <article class="conversation-turn ${escapeHtml(turn.role || "operator")}">
+                    <div class="conversation-role">${escapeHtml(turn.role === "leadbot" ? "LeadBot" : "Operator")}</div>
+                    <div>${escapeHtml(turn.content || "")}</div>
+                  </article>
+                `
+              )
+              .join("")
+          : '<div class="empty">LeadBot conversation will appear here.</div>';
+        const modeLabel =
+          draft.draft_source === "model"
+            ? "Model-backed draft"
+            : draft.draft_source === "fallback"
+              ? "Fallback draft"
+              : "Deterministic draft";
+        elements.leadbotDraftModeMeta.textContent =
+          draft.draft_source === "model"
+            ? "LeadBot used the configured model to translate the conversation into a studio draft."
+            : draft.draft_source === "fallback"
+              ? "LeadBot tried the model first, then safely fell back to the built-in planner for this pass."
+              : "LeadBot used the built-in planner. Configure the model settings to enable richer drafting.";
+        elements.leadbotSuggestionGrid.innerHTML = (draft.suggested_next_prompts || [])
+          .map(
+            (prompt) => `
+              <button class="prompt-chip" data-leadbot-prompt="${escapeHtml(prompt)}" type="button">${escapeHtml(prompt)}</button>
+            `
+          )
+          .join("") || '<span class="meta">No refinement prompts yet.</span>';
         elements.leadbotDraftPreview.innerHTML = `
           <div class="control-card">
             <div class="section-kicker">LeadBot Response</div>
-            <div style="margin-top: 8px;"><strong>${escapeHtml(draft.studio_name)}</strong></div>
+            <div style="margin-top: 8px;" class="split">
+              <strong>${escapeHtml(draft.studio_name)}</strong>
+              <span class="pill">${escapeHtml(modeLabel)}</span>
+            </div>
             <div class="meta">${escapeHtml(draft.leadbot_response)}</div>
           </div>
           <div class="control-card">
@@ -1750,6 +1898,15 @@
               if (draftWorkflow) {
                 openEditor("workflow", "create", null, draftWorkflow);
               }
+            });
+          });
+        elements.leadbotSuggestionGrid
+          .querySelectorAll("[data-leadbot-prompt]")
+          .forEach((button) => {
+            button.addEventListener("click", () => {
+              const prompt = button.getAttribute("data-leadbot-prompt");
+              elements.leadbotBriefInput.value = prompt || "";
+              elements.leadbotBriefInput.focus();
             });
           });
       }
@@ -2010,7 +2167,10 @@
           elements.leadbotDraftStatus.textContent = "Describe the studio you want first.";
           return;
         }
-        elements.leadbotDraftStatus.textContent = "LeadBot is drafting the studio…";
+        const hasExistingDraft = Boolean(state.leadbotDraft);
+        elements.leadbotDraftStatus.textContent = hasExistingDraft
+          ? "LeadBot is refining the draft…"
+          : "LeadBot is drafting the studio…";
         try {
           state.leadbotDraft = await fetchJson("/studio/leadbot/draft", {
             method: "POST",
@@ -2018,14 +2178,31 @@
             body: JSON.stringify({
               brief,
               operator: "console-operator",
+              prefer_model: true,
+              conversation: state.leadbotDraft?.conversation || [],
+              current_draft: state.leadbotDraft,
             }),
           });
+          elements.leadbotBriefInput.value = "";
           renderLeadBotDraft();
-          elements.leadbotDraftStatus.textContent = "Draft ready. Review it, edit it, or apply it.";
+          elements.leadbotDraftStatus.textContent =
+            state.leadbotDraft?.draft_source === "model"
+              ? "Model draft ready. Keep talking to LeadBot to refine it."
+              : state.leadbotDraft?.draft_source === "fallback"
+                ? "Fallback draft ready. You can still keep refining it in natural language."
+                : "Draft ready. Review it, edit it, or apply it.";
         } catch (error) {
           console.error(error);
           elements.leadbotDraftStatus.textContent = error.message || "LeadBot draft failed.";
         }
+      }
+
+      function resetLeadBotThread() {
+        state.leadbotDraft = null;
+        state.leadbotThread = [];
+        elements.leadbotBriefInput.value = "";
+        elements.leadbotDraftStatus.textContent = "LeadBot thread cleared. Start a new studio conversation.";
+        renderLeadBotDraft();
       }
 
       async function applyLeadBotDraft() {
@@ -3482,6 +3659,7 @@
       elements.newWorkflowButton.addEventListener("click", () => openWorkflowEditor());
       elements.newWorkflowButtonInline.addEventListener("click", () => openWorkflowEditor());
       elements.generateLeadbotDraftButton.addEventListener("click", generateLeadBotDraft);
+      elements.resetLeadbotThreadButton.addEventListener("click", resetLeadBotThread);
       elements.applyLeadbotDraftButton.addEventListener("click", applyLeadBotDraft);
       elements.createRunButton.addEventListener("click", createRun);
       elements.openDocsButton.addEventListener("click", () => {

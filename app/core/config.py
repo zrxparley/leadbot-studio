@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./leadbot_studio.db"
     timezone: str = "Asia/Shanghai"
     leadbot_manifest_path: str = "app/data/leadbot_studio_manifest.json"
+    leadbot_draft_provider: str = "auto"
+    leadbot_draft_model: str = "gpt-5.4"
+    openai_api_key: str | None = None
+    openai_base_url: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

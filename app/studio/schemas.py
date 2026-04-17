@@ -147,18 +147,100 @@ class WorkflowDefinition(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
-class LeadBotDraftRequest(BaseModel):
-    brief: str
-    operator: str | None = None
+class LeadBotConversationTurn(BaseModel):
+    role: Literal["operator", "leadbot"] = "operator"
+    content: str
+
+
+class LeadBotModelSkillDraft(BaseModel):
+    slug: str
+    name: str
+    purpose: str
+
+
+class LeadBotModelAgentDraft(BaseModel):
+    id: str
+    display_name: str
+    role: str
+    objective: str
+    template_hint: Literal["researcher", "builder", "qa", "publisher", "custom"] = "custom"
+    remark: str | None = None
+    capabilities: list[str] = Field(default_factory=list)
+    skills: list[LeadBotModelSkillDraft] = Field(default_factory=list)
+    handoff_tags: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+
+class LeadBotModelWorkflowParticipantDraft(BaseModel):
+    agent_id: str
+    mode: Literal["lead", "owner", "support", "reviewer", "observer"] = "owner"
+    responsibility: str
+    required_skills: list[str] = Field(default_factory=list)
+    notes: str | None = None
+
+
+class LeadBotModelWorkflowStepDraft(BaseModel):
+    id: str
+    name: str
+    step_type: Literal[
+        "intake",
+        "research",
+        "design",
+        "build",
+        "review",
+        "qa",
+        "publish",
+        "ops",
+        "custom",
+    ] = "custom"
+    owner_agent_id: str
+    depends_on: list[str] = Field(default_factory=list)
+    objective: str
+    instructions: str | None = None
+    deliverables: list[str] = Field(default_factory=list)
+    handoff_to: list[str] = Field(default_factory=list)
+    approval_required: bool = False
+
+
+class LeadBotModelWorkflowDraft(BaseModel):
+    id: str
+    name: str
+    description: str
+    trigger: str
+    participants: list[LeadBotModelWorkflowParticipantDraft] = Field(default_factory=list)
+    steps: list[LeadBotModelWorkflowStepDraft] = Field(default_factory=list)
+    outputs: list[str] = Field(default_factory=list)
+    success_criteria: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class LeadBotModelDraftResponse(BaseModel):
+    studio_name: str
+    leadbot_response: str
+    rationale: list[str] = Field(default_factory=list)
+    suggested_next_prompts: list[str] = Field(default_factory=list)
+    agents: list[LeadBotModelAgentDraft] = Field(default_factory=list)
+    workflow: LeadBotModelWorkflowDraft
 
 
 class LeadBotDraftBundle(BaseModel):
     studio_name: str
     brief: str
     leadbot_response: str
+    draft_source: Literal["deterministic", "model", "fallback"] = "deterministic"
     rationale: list[str] = Field(default_factory=list)
+    conversation: list[LeadBotConversationTurn] = Field(default_factory=list)
+    suggested_next_prompts: list[str] = Field(default_factory=list)
     suggested_agents: list[AgentBot] = Field(default_factory=list)
     suggested_workflows: list[WorkflowDefinition] = Field(default_factory=list)
+
+
+class LeadBotDraftRequest(BaseModel):
+    brief: str
+    operator: str | None = None
+    prefer_model: bool = True
+    conversation: list[LeadBotConversationTurn] = Field(default_factory=list)
+    current_draft: dict[str, Any] | None = None
 
 
 class LeadBotDraftApplyRequest(BaseModel):
