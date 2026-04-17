@@ -325,6 +325,42 @@ class LeadBotExecutionResult(BaseModel):
     apply_result: LeadBotDraftApplyResult | None = None
 
 
+ProposalStatus = Literal[
+    "pending",
+    "approved",
+    "rejected",
+    "revision_requested",
+    "applied",
+]
+
+
+class LeadBotProposalRecord(BaseModel):
+    proposal_id: str
+    status: ProposalStatus = "pending"
+    brief: str
+    draft: LeadBotDraftBundle
+    operator: str | None = None
+    reviewer_note: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class LeadBotProposalCreateRequest(LeadBotDraftRequest):
+    title: str | None = None
+
+
+class LeadBotProposalActionRequest(BaseModel):
+    action: Literal["approve", "reject", "revise"]
+    note: str | None = None
+    replace_existing: bool = True
+    sync_removed_entities: bool = True
+
+
+class LeadBotProposalActionResult(BaseModel):
+    proposal: LeadBotProposalRecord
+    apply_result: LeadBotDraftApplyResult | None = None
+
+
 class StudioMetadata(BaseModel):
     studio_id: str
     studio_name: str

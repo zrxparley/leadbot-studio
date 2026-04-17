@@ -77,6 +77,7 @@ LeadBot 是控制平面，不是网关替代品。
 - LeadBot manifest impact diff，可预览新增 / 更新 / 删除哪些 AgentBot 与 Workflow
 - LeadBot workflow review，可预览 step 顺序、依赖、owner、approval gate 的具体变化
 - LeadBot execute 模式，可直接通过自然语言 `Send & Apply` 同步工作室
+- LeadBot proposal 审议链路，支持 `approve / reject / revise`
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
 - 一个可直接 fork 的默认工作室模板
@@ -89,6 +90,10 @@ LeadBot 是控制平面，不是网关替代品。
 - `GET /studio/summary`
 - `POST /studio/leadbot/draft`
 - `POST /studio/leadbot/execute`
+- `POST /studio/leadbot/proposals`
+- `GET /studio/leadbot/proposals`
+- `GET /studio/leadbot/proposals/{proposal_id}`
+- `POST /studio/leadbot/proposals/{proposal_id}/actions`
 - `POST /studio/leadbot/apply-draft`
 - `GET /studio/agents`
 - `GET /studio/workflows`
@@ -192,6 +197,14 @@ app/data/leadbot_studio_manifest.json
 
 - `Send to LeadBot`：先起草，再看 impact diff，然后决定是否应用
 - `Send & Apply`：直接把这句自然语言变成 studio 变更并同步到 manifest
+
+同时也提供独立入口：
+
+- `/studio/chat`
+- `/studio/workflows`
+- `/studio/proposals`
+
+配置文件现在默认从项目根目录 `.env` 读取；如果部署时配置文件不在仓库根目录，可以通过环境变量 `LEADBOT_ENV_FILE` 指向自定义配置文件路径。
 
 ## OpenClaw 对接思路
 

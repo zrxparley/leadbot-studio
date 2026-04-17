@@ -117,6 +117,26 @@
         padding: 28px;
       }
 
+      .studio-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .studio-nav a {
+        text-decoration: none;
+      }
+
+      .studio-nav .active {
+        background: var(--accent);
+        color: #fff8f2;
+      }
+
+      .page-hidden {
+        display: none !important;
+      }
+
       .hero {
         display: grid;
         grid-template-columns: 1.2fr 0.8fr;
@@ -913,6 +933,15 @@
         margin-top: 10px;
       }
 
+      .workflow-canvas {
+        min-height: 220px;
+        padding: 18px;
+        border-radius: 22px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+        overflow: auto;
+      }
+
       .leadbot-chat {
         display: flex;
         flex-direction: column;
@@ -1029,6 +1058,12 @@
   </head>
   <body>
     <div class="shell">
+      <nav class="studio-nav">
+        <a id="navConsole" class="button ghost small" href="/studio/console">Console</a>
+        <a id="navChat" class="button ghost small" href="/studio/chat">Chat</a>
+        <a id="navWorkflows" class="button ghost small" href="/studio/workflows">Workflows</a>
+        <a id="navProposals" class="button ghost small" href="/studio/proposals">Proposals</a>
+      </nav>
       <section class="hero">
         <div class="hero-panel">
           <div class="eyebrow">LeadBot Studio Console</div>
@@ -1069,7 +1104,7 @@
       </section>
 
       <section class="layout">
-        <div class="panel">
+        <div class="panel" data-page-block="console workflows">
           <div class="panel-header">
             <div>
               <h2>Agent Directory</h2>
@@ -1087,7 +1122,7 @@
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-page-block="console chat workflows">
           <div class="panel-header">
             <div>
               <h2>Configuration Studio</h2>
@@ -1134,6 +1169,13 @@
             </div>
             <div id="leadbotDraftPreview" class="draft-preview"></div>
             <div id="leadbotDiffPreview" class="draft-preview"></div>
+            <div class="control-card">
+              <div class="split">
+                <h3>Workflow Window</h3>
+                <span class="statusline">Live workflow view generated from LeadBot's current draft.</span>
+              </div>
+              <div id="leadbotWorkflowCanvas" class="workflow-canvas" style="margin-top: 12px;"></div>
+            </div>
           </div>
           <div class="detail-grid">
             <div>
@@ -1169,7 +1211,7 @@
           </div>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-page-block="console workflows">
           <div class="panel-header">
             <div>
               <h2>Run Control</h2>
@@ -1187,6 +1229,22 @@
           <div class="section">
             <h3>Event Timeline</h3>
             <div id="eventsList" class="timeline"></div>
+          </div>
+        </div>
+      </section>
+      <section class="panel" data-page-block="console proposals" style="margin-top: 18px;">
+        <div class="panel-header">
+          <div>
+            <h2>Change Proposals</h2>
+            <div class="panel-subtitle">Proposal records for approve, reject, and revise decisions.</div>
+          </div>
+        </div>
+        <div class="detail-grid">
+          <div>
+            <div id="proposalList" class="stack"></div>
+          </div>
+          <div>
+            <div id="proposalMeta" class="section"></div>
           </div>
         </div>
       </section>
@@ -1232,6 +1290,8 @@
         runs: [],
         selectedWorkflowId: null,
         selectedRunId: null,
+        proposals: [],
+        selectedProposalId: null,
         exportBundle: null,
         leadbotDraft: null,
         leadbotThread: [],
@@ -1277,6 +1337,9 @@
         leadbotDraftModeMeta: document.getElementById("leadbotDraftModeMeta"),
         leadbotDraftPreview: document.getElementById("leadbotDraftPreview"),
         leadbotDiffPreview: document.getElementById("leadbotDiffPreview"),
+        leadbotWorkflowCanvas: document.getElementById("leadbotWorkflowCanvas"),
+        proposalList: document.getElementById("proposalList"),
+        proposalMeta: document.getElementById("proposalMeta"),
         editorShell: document.getElementById("editorShell"),
         editorTitle: document.getElementById("editorTitle"),
         editorSubtitle: document.getElementById("editorSubtitle"),
@@ -1306,6 +1369,47 @@
         failed: ["queued"],
         completed: [],
       };
+
+      const PAGE_ROUTE_MAP = {
+        "/studio/console": "console",
+        "/studio/chat": "chat",
+        "/studio/workflows": "workflows",
+        "/studio/proposals": "proposals",
+      };
+
+      function getCurrentPage() {
+        return PAGE_ROUTE_MAP[window.location.pathname] || "console";
+      }
+
+      function applyPageMode() {
+        const currentPage = getCurrentPage();
+        document.querySelectorAll(".studio-nav a").forEach((link) => {
+          link.classList.toggle("active", link.getAttribute("href") === window.location.pathname);
+        });
+        document.querySelectorAll("[data-page-block]").forEach((block) => {
+          const allowed = (block.getAttribute("data-page-block") || "").split(/\s+/).filter(Boolean);
+          const visible = currentPage === "console" ? true : allowed.includes(currentPage);
+          block.classList.toggle("page-hidden", !visible);
+        });
+      }
+
+      async function ensureMermaid() {
+        if (window.mermaid?.run) {
+          return window.mermaid;
+        }
+        await new Promise((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js";
+          script.async = true;
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+        if (window.mermaid?.initialize) {
+          window.mermaid.initialize({ startOnLoad: false, theme: "neutral" });
+        }
+        return window.mermaid;
+      }
 
       const SANDBOX_MODES = ["none", "workspace", "agent", "all"];
       const SANDBOX_SCOPES = ["workspace", "agent"];
@@ -1439,6 +1543,10 @@
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#39;");
+      }
+
+      function escapeMermaid(value) {
+        return String(value ?? "").replaceAll('"', '\\"').replaceAll("\n", " ");
       }
 
       function deepClone(value) {
@@ -1865,6 +1973,8 @@
             '<div class="empty">LeadBot draft preview will appear here after you describe the studio.</div>';
           elements.leadbotDiffPreview.innerHTML =
             '<div class="empty">LeadBot impact diff will appear here once the draft is ready.</div>';
+          elements.leadbotWorkflowCanvas.innerHTML =
+            '<div class="empty">LeadBot workflow visualization will appear here once a draft exists.</div>';
           elements.applyLeadbotDraftButton.disabled = true;
           return;
         }
@@ -1987,6 +2097,32 @@
             });
           });
         renderLeadBotDiff(draft.manifest_diff || {});
+        renderLeadBotWorkflowCanvas(draft.suggested_workflows?.[0] || null);
+      }
+
+      async function renderLeadBotWorkflowCanvas(workflow) {
+        if (!workflow) {
+          elements.leadbotWorkflowCanvas.innerHTML =
+            '<div class="empty">LeadBot workflow visualization will appear here once a draft exists.</div>';
+          return;
+        }
+        const lines = ["flowchart LR"];
+        (workflow.steps || []).forEach((step) => {
+          lines.push(`${step.id}[\"${escapeMermaid(step.name)}\"]`);
+          (step.depends_on || []).forEach((dependency) => {
+            lines.push(`${dependency} --> ${step.id}`);
+          });
+        });
+        const mermaidMarkup = `<pre class="mermaid">${lines.join("\n")}</pre>`;
+        elements.leadbotWorkflowCanvas.innerHTML = mermaidMarkup;
+        try {
+          const mermaid = await ensureMermaid();
+          if (mermaid?.run) {
+            await mermaid.run({ nodes: [elements.leadbotWorkflowCanvas.querySelector(".mermaid")] });
+          }
+        } catch (error) {
+          console.error(error);
+        }
       }
 
       function renderLeadBotDiff(diff) {
@@ -2132,6 +2268,132 @@
               .join("")}
           </div>
         `;
+      }
+
+      async function loadProposals() {
+        state.proposals = await fetchJson("/studio/leadbot/proposals");
+        if (!state.selectedProposalId && state.proposals.length) {
+          state.selectedProposalId = state.proposals[0].proposal_id;
+        } else if (
+          state.selectedProposalId &&
+          !state.proposals.some((item) => item.proposal_id === state.selectedProposalId)
+        ) {
+          state.selectedProposalId = state.proposals[0]?.proposal_id || null;
+        }
+        renderProposals();
+      }
+
+      function renderProposals() {
+        if (!state.proposals.length) {
+          elements.proposalList.innerHTML = '<div class="empty">No change proposals yet. Chat with LeadBot to create one.</div>';
+          elements.proposalMeta.innerHTML = '<div class="empty">Select a proposal to review it here.</div>';
+          return;
+        }
+        elements.proposalList.innerHTML = state.proposals
+          .map(
+            (proposal) => `
+              <article class="card ${proposal.proposal_id === state.selectedProposalId ? "active" : ""}">
+                <div class="split">
+                  <div>
+                    <strong>${escapeHtml(proposal.title || proposal.proposal_id)}</strong>
+                    <div class="meta">${escapeHtml(proposal.brief)}</div>
+                  </div>
+                  <span class="pill">${escapeHtml(proposal.status)}</span>
+                </div>
+                <div class="button-row" style="margin-top: 12px;">
+                  <button class="ghost small" data-select-proposal="${escapeHtml(proposal.proposal_id)}" type="button">Open</button>
+                </div>
+              </article>
+            `
+          )
+          .join("");
+        elements.proposalList.querySelectorAll("[data-select-proposal]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            state.selectedProposalId = button.getAttribute("data-select-proposal");
+            await openProposal(state.selectedProposalId);
+          });
+        });
+        if (state.selectedProposalId) {
+          const proposal = state.proposals.find((item) => item.proposal_id === state.selectedProposalId);
+          renderProposalDetail(proposal || null);
+        }
+      }
+
+      async function openProposal(proposalId) {
+        const proposal = await fetchJson(`/studio/leadbot/proposals/${proposalId}`);
+        state.selectedProposalId = proposal.proposal_id;
+        state.leadbotDraft = proposal.draft;
+        renderLeadBotDraft();
+        renderProposalDetail(proposal);
+        renderProposals();
+      }
+
+      function renderProposalDetail(proposal) {
+        if (!proposal) {
+          elements.proposalMeta.innerHTML = '<div class="empty">Select a proposal to inspect the change packet.</div>';
+          return;
+        }
+        elements.proposalMeta.innerHTML = `
+          <div class="split">
+            <div>
+              <h3>${escapeHtml(proposal.title || proposal.proposal_id)}</h3>
+              <div class="meta">${escapeHtml(proposal.brief)}</div>
+            </div>
+            <span class="pill">${escapeHtml(proposal.status)}</span>
+          </div>
+          <div class="meta" style="margin-top: 12px;">${escapeHtml(proposal.draft?.leadbot_response || "")}</div>
+          <textarea id="proposalActionNote" placeholder="Add approval, rejection, or revision notes." style="margin-top: 14px;"></textarea>
+          <div class="button-row" style="margin-top: 12px;">
+            <button data-proposal-action="approve" type="button">Approve & Apply</button>
+            <button class="secondary" data-proposal-action="revise" type="button">Request Revision</button>
+            <button class="danger" data-proposal-action="reject" type="button">Reject</button>
+          </div>
+          <div id="proposalActionStatus" class="statusline" style="margin-top: 10px;"></div>
+        `;
+        elements.proposalMeta.querySelectorAll("[data-proposal-action]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await actOnProposal(
+              proposal.proposal_id,
+              button.getAttribute("data-proposal-action"),
+            );
+          });
+        });
+      }
+
+      async function actOnProposal(proposalId, action) {
+        const note = document.getElementById("proposalActionNote")?.value?.trim() || null;
+        const statusEl = document.getElementById("proposalActionStatus");
+        if (statusEl) {
+          statusEl.textContent = `Submitting ${action}…`;
+        }
+        try {
+          const result = await fetchJson(`/studio/leadbot/proposals/${proposalId}/actions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action,
+              note,
+              replace_existing: true,
+              sync_removed_entities: true,
+            }),
+          });
+          if (action === "revise" && note) {
+            elements.leadbotBriefInput.value = note;
+          }
+          await refreshAll();
+          if (statusEl) {
+            statusEl.textContent = `${action} completed.`;
+          }
+          if (result.proposal?.draft) {
+            state.leadbotDraft = result.proposal.draft;
+            renderLeadBotDraft();
+          }
+        } catch (error) {
+          console.error(error);
+          if (statusEl) {
+            statusEl.textContent = error.message || "Proposal action failed.";
+          }
+        }
       }
 
       function renderRuns() {
@@ -2354,26 +2616,37 @@
         elements.runCreateStatus.textContent = "Refreshing studio…";
         elements.runActionStatus.textContent = "";
         try {
-          const [summary, agents, workflows, exportBundle] = await Promise.all([
+          const [summary, agents, workflows, exportBundle, proposals] = await Promise.all([
             fetchJson("/studio/summary"),
             fetchJson("/studio/agents"),
             fetchJson("/studio/workflows"),
             fetchJson("/studio/openclaw/export"),
+            fetchJson("/studio/leadbot/proposals"),
           ]);
           state.summary = summary;
           state.agents = agents;
           state.workflows = workflows;
           state.exportBundle = exportBundle;
+          state.proposals = proposals;
           state.workflowPlans.clear();
           if (!state.selectedWorkflowId && workflows.length) {
             state.selectedWorkflowId = workflows[0].id;
           } else if (state.selectedWorkflowId && !workflows.some((item) => item.id === state.selectedWorkflowId)) {
             state.selectedWorkflowId = workflows[0]?.id || null;
           }
+          if (!state.selectedProposalId && proposals.length) {
+            state.selectedProposalId = proposals[0].proposal_id;
+          } else if (
+            state.selectedProposalId &&
+            !proposals.some((item) => item.proposal_id === state.selectedProposalId)
+          ) {
+            state.selectedProposalId = proposals[0]?.proposal_id || null;
+          }
           renderSummary();
           renderAgents();
           renderOpenClawExport();
           renderLeadBotDraft();
+          renderProposals();
           await selectWorkflow(state.selectedWorkflowId, { loadRuns: true });
           elements.runCreateStatus.textContent = "Studio refreshed.";
         } catch (error) {
@@ -2405,19 +2678,25 @@
           ? "LeadBot is refining the draft…"
           : "LeadBot is drafting the studio…";
         try {
-          state.leadbotDraft = await fetchJson("/studio/leadbot/draft", {
+          const proposal = await fetchJson("/studio/leadbot/proposals", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(buildLeadBotRequestPayload()),
+            body: JSON.stringify({
+              ...buildLeadBotRequestPayload(),
+              title: hasExistingDraft ? "LeadBot refinement proposal" : "LeadBot draft proposal",
+            }),
           });
+          state.selectedProposalId = proposal.proposal_id;
+          state.leadbotDraft = proposal.draft;
           elements.leadbotBriefInput.value = "";
+          await loadProposals();
           renderLeadBotDraft();
           elements.leadbotDraftStatus.textContent =
             state.leadbotDraft?.draft_source === "model"
-              ? "Model draft ready. Keep talking to LeadBot to refine it."
+              ? `Model proposal ready. Proposal ${proposal.proposal_id} is pending review.`
               : state.leadbotDraft?.draft_source === "fallback"
-                ? "Fallback draft ready. You can still keep refining it in natural language."
-                : "Draft ready. Review it, edit it, or apply it.";
+                ? `Fallback proposal ready. Proposal ${proposal.proposal_id} is pending review.`
+                : `Proposal ${proposal.proposal_id} is ready for review.`;
         } catch (error) {
           console.error(error);
           elements.leadbotDraftStatus.textContent = error.message || "LeadBot draft failed.";
@@ -2432,23 +2711,31 @@
         }
         elements.leadbotDraftStatus.textContent = "LeadBot is drafting and syncing the studio…";
         try {
-          const result = await fetchJson("/studio/leadbot/execute", {
+          const proposal = await fetchJson("/studio/leadbot/proposals", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               ...buildLeadBotRequestPayload(),
-              auto_apply: true,
+              title: "LeadBot auto-apply proposal",
+            }),
+          });
+          const result = await fetchJson(`/studio/leadbot/proposals/${proposal.proposal_id}/actions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "approve",
+              note: "Applied from Chat page.",
               replace_existing: true,
               sync_removed_entities: true,
             }),
           });
-          state.leadbotDraft = result.draft;
+          state.selectedProposalId = proposal.proposal_id;
+          state.leadbotDraft = proposal.draft;
           elements.leadbotBriefInput.value = "";
-          renderLeadBotDraft();
           await refreshAll();
           const applyResult = result.apply_result || {};
           elements.leadbotDraftStatus.textContent =
-            `Applied from chat. Agents +${(applyResult.created_agents || []).length}/~${(applyResult.updated_agents || []).length}/-${(applyResult.deleted_agents || []).length}. Workflows +${(applyResult.created_workflows || []).length}/~${(applyResult.updated_workflows || []).length}/-${(applyResult.deleted_workflows || []).length}.`;
+            `Applied from proposal ${proposal.proposal_id}. Agents +${(applyResult.created_agents || []).length}/~${(applyResult.updated_agents || []).length}/-${(applyResult.deleted_agents || []).length}. Workflows +${(applyResult.created_workflows || []).length}/~${(applyResult.updated_workflows || []).length}/-${(applyResult.deleted_workflows || []).length}.`;
         } catch (error) {
           console.error(error);
           elements.leadbotDraftStatus.textContent = error.message || "LeadBot execute failed.";
@@ -3941,6 +4228,7 @@
       elements.editorSaveButton.addEventListener("click", saveEditor);
       elements.editorDeleteButton.addEventListener("click", deleteEditorEntity);
 
+      applyPageMode();
       refreshAll();
     </script>
   </body>

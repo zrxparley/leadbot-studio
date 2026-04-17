@@ -6,6 +6,8 @@ from app.studio.schemas import (
     AgentBot,
     LeadBotDraftApplyRequest,
     LeadBotDraftRequest,
+    LeadBotProposalActionRequest,
+    LeadBotProposalCreateRequest,
     LeadBotExecutionRequest,
     StudioManifest,
     WorkflowDefinition,
@@ -17,6 +19,11 @@ from app.studio.runtime import (
     WorkflowRunNotFoundError,
     WorkflowRunService,
     WorkflowRunTransitionError,
+)
+from app.studio.proposals import (
+    LeadBotProposalNotFoundError,
+    LeadBotProposalService,
+    LeadBotProposalTransitionError,
 )
 from app.studio.service import (
     AgentNotFoundError,
@@ -55,6 +62,50 @@ def create_leadbot_draft(request: LeadBotDraftRequest) -> dict:
 def execute_leadbot_instruction(request: LeadBotExecutionRequest) -> dict:
     try:
         return studio_service.execute_leadbot_instruction(request).model_dump(mode="json")
+    except EntityConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
+    except AgentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {exc}") from exc
+
+
+@router.post("/leadbot/proposals")
+def create_leadbot_proposal(
+    request: LeadBotProposalCreateRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    return LeadBotProposalService(db, studio_service).create_proposal(request).model_dump(mode="json")
+
+
+@router.get("/leadbot/proposals")
+def list_leadbot_proposals(db: Session = Depends(get_db)) -> list[dict]:
+    return [
+        proposal.model_dump(mode="json")
+        for proposal in LeadBotProposalService(db, studio_service).list_proposals()
+    ]
+
+
+@router.get("/leadbot/proposals/{proposal_id}")
+def get_leadbot_proposal(proposal_id: str, db: Session = Depends(get_db)) -> dict:
+    try:
+        return LeadBotProposalService(db, studio_service).get_proposal(proposal_id).model_dump(mode="json")
+    except LeadBotProposalNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown proposal: {exc}") from exc
+
+
+@router.post("/leadbot/proposals/{proposal_id}/actions")
+def act_on_leadbot_proposal(
+    proposal_id: str,
+    request: LeadBotProposalActionRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        return LeadBotProposalService(db, studio_service).act_on_proposal(proposal_id, request).model_dump(mode="json")
+    except LeadBotProposalNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown proposal: {exc}") from exc
+    except LeadBotProposalTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except EntityConflictError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except WorkflowNotFoundError as exc:

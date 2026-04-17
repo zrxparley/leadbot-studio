@@ -98,3 +98,32 @@ class WorkflowRunEventRecord(Base, TimestampMixin):
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+
+
+class LeadBotProposalRecord(Base, TimestampMixin):
+    __tablename__ = "leadbot_proposals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    proposal_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    brief: Mapped[str] = mapped_column(Text)
+    operator: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    status: Mapped[str] = mapped_column(String(40), default="pending", index=True)
+    draft_json: Mapped[str] = mapped_column(Text)
+    reviewer_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    def to_dict(self) -> dict[str, Any]:
+        import json
+
+        return {
+            "id": self.id,
+            "proposal_id": self.proposal_id,
+            "title": self.title,
+            "brief": self.brief,
+            "operator": self.operator,
+            "status": self.status,
+            "draft": json.loads(self.draft_json),
+            "reviewer_note": self.reviewer_note,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }

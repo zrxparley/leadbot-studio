@@ -30,8 +30,13 @@ def test_console_page_renders():
     assert "Reset Thread" in response.text
     assert "Apply to Studio" in response.text
     assert "Vibe Prompts" in response.text
+    assert "Workflow Window" in response.text
     assert "Manifest Impact" in response.text
     assert "Workflow Review" in response.text
+    assert "Change Proposals" in response.text
+    assert "/studio/chat" in response.text
+    assert "/studio/workflows" in response.text
+    assert "/studio/proposals" in response.text
     assert "Flow Composer" in response.text
     assert "Drag steps to reorder" in response.text
     assert "Template System" in response.text
@@ -42,3 +47,15 @@ def test_console_page_renders():
     assert "Update Step" in response.text
     assert "OpenClaw Export" in response.text
     assert "Copy JSON" in response.text
+
+
+def test_chat_and_proposals_pages_render():
+    client = TestClient(app)
+
+    chat = client.get("/studio/chat")
+    proposals = client.get("/studio/proposals")
+
+    assert chat.status_code == 200
+    assert proposals.status_code == 200
+    assert "LeadBot Studio Console" in chat.text
+    assert "Change Proposals" in proposals.text
