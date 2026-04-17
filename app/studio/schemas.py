@@ -147,6 +147,32 @@ class WorkflowDefinition(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class LeadBotDraftRequest(BaseModel):
+    brief: str
+    operator: str | None = None
+
+
+class LeadBotDraftBundle(BaseModel):
+    studio_name: str
+    brief: str
+    leadbot_response: str
+    rationale: list[str] = Field(default_factory=list)
+    suggested_agents: list[AgentBot] = Field(default_factory=list)
+    suggested_workflows: list[WorkflowDefinition] = Field(default_factory=list)
+
+
+class LeadBotDraftApplyRequest(BaseModel):
+    draft: LeadBotDraftBundle
+    replace_existing: bool = False
+
+
+class LeadBotDraftApplyResult(BaseModel):
+    created_agents: list[str] = Field(default_factory=list)
+    updated_agents: list[str] = Field(default_factory=list)
+    created_workflows: list[str] = Field(default_factory=list)
+    updated_workflows: list[str] = Field(default_factory=list)
+
+
 class StudioMetadata(BaseModel):
     studio_id: str
     studio_name: str

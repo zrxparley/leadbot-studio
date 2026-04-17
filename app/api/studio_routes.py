@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.studio.schemas import (
     AgentBot,
+    LeadBotDraftApplyRequest,
+    LeadBotDraftRequest,
     StudioManifest,
     WorkflowDefinition,
     WorkflowRunRequest,
@@ -41,6 +43,23 @@ def put_manifest(manifest: StudioManifest) -> dict:
 @router.get("/summary")
 def get_summary() -> dict:
     return studio_service.get_summary()
+
+
+@router.post("/leadbot/draft")
+def create_leadbot_draft(request: LeadBotDraftRequest) -> dict:
+    return studio_service.draft_studio_from_brief(request).model_dump(mode="json")
+
+
+@router.post("/leadbot/apply-draft")
+def apply_leadbot_draft(request: LeadBotDraftApplyRequest) -> dict:
+    try:
+        return studio_service.apply_draft_bundle(request).model_dump(mode="json")
+    except EntityConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except WorkflowNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow: {exc}") from exc
+    except AgentNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown agent: {exc}") from exc
 
 
 @router.get("/agents")

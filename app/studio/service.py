@@ -9,12 +9,22 @@ from typing import Any
 from app.core.config import get_settings
 from app.studio.schemas import (
     AgentBot,
+    BotIdentity,
     LeadBot,
+    LeadBotDraftApplyRequest,
+    LeadBotDraftApplyResult,
+    LeadBotDraftBundle,
+    LeadBotDraftRequest,
+    SkillAttachment,
     StudioManifest,
+    ToolPolicy,
     WorkflowDefinition,
+    WorkflowParticipant,
     WorkflowRunPreview,
     WorkflowRunRequest,
     WorkflowRunStepPreview,
+    WorkflowStep,
+    WorkspaceProfile,
 )
 
 
@@ -77,6 +87,85 @@ class StudioManifestService:
     def save_manifest(self, manifest: StudioManifest | dict[str, Any]) -> StudioManifest:
         return self.repository.save(manifest)
 
+    def draft_studio_from_brief(
+        self, request: LeadBotDraftRequest | dict[str, Any]
+    ) -> LeadBotDraftBundle:
+        manifest = self.load_manifest()
+        prompt = (
+            request
+            if isinstance(request, LeadBotDraftRequest)
+            else LeadBotDraftRequest.model_validate(request)
+        )
+        brief = prompt.brief.strip()
+        brief_lower = brief.lower()
+        templates = _select_agent_templates_for_brief(brief_lower)
+        agents = [
+            _build_agent_from_template(template_key, brief, manifest.defaults.openclaw_home)
+            for template_key in templates
+        ]
+        workflow = _build_workflow_from_brief(brief, manifest.lead_bot, agents)
+        rationale = _build_draft_rationale(brief, templates, workflow)
+        return LeadBotDraftBundle(
+            studio_name=_infer_studio_name(brief),
+            brief=brief,
+            leadbot_response=(
+                f"我根据这段需求起草了 {len(agents)} 个 specialist agents 和 "
+                f"{len([workflow])} 条 workflow。"
+                "它们已经按研究、执行、校验、发布的节奏接好了依赖，你可以直接应用再微调。"
+            ),
+            rationale=rationale,
+            suggested_agents=agents,
+            suggested_workflows=[workflow],
+        )
+
+    def apply_draft_bundle(
+        self,
+        request: LeadBotDraftApplyRequest | LeadBotDraftBundle | dict[str, Any],
+    ) -> LeadBotDraftApplyResult:
+        apply_request = (
+            request
+            if isinstance(request, LeadBotDraftApplyRequest)
+            else LeadBotDraftApplyRequest.model_validate(
+                {"draft": request, "replace_existing": False}
+                if isinstance(request, LeadBotDraftBundle)
+                else request
+            )
+        )
+        manifest = self.load_manifest()
+        existing_agent_ids = {agent.id for agent in manifest.agents}
+        existing_workflow_ids = {workflow.id for workflow in manifest.workflows}
+        result = LeadBotDraftApplyResult()
+
+        for agent in apply_request.draft.suggested_agents:
+            normalized_agent = self._normalize_agent_for_apply(
+                agent,
+                existing_ids=existing_agent_ids | {manifest.lead_bot.id},
+                replace_existing=apply_request.replace_existing,
+            )
+            if normalized_agent.id in existing_agent_ids:
+                self.update_agent(normalized_agent.id, normalized_agent)
+                result.updated_agents.append(normalized_agent.id)
+            else:
+                self.create_agent(normalized_agent)
+                result.created_agents.append(normalized_agent.id)
+                existing_agent_ids.add(normalized_agent.id)
+
+        for workflow in apply_request.draft.suggested_workflows:
+            normalized_workflow = self._normalize_workflow_for_apply(
+                workflow,
+                existing_ids=existing_workflow_ids,
+                replace_existing=apply_request.replace_existing,
+            )
+            if normalized_workflow.id in existing_workflow_ids:
+                self.update_workflow(normalized_workflow.id, normalized_workflow)
+                result.updated_workflows.append(normalized_workflow.id)
+            else:
+                self.create_workflow(normalized_workflow)
+                result.created_workflows.append(normalized_workflow.id)
+                existing_workflow_ids.add(normalized_workflow.id)
+
+        return result
+
     def get_summary(self) -> dict[str, Any]:
         manifest = self.load_manifest()
         agent_catalog = [manifest.lead_bot, *manifest.agents]
@@ -97,6 +186,41 @@ class StudioManifestService:
                 }
             ),
         }
+
+    @staticmethod
+    def _normalize_agent_for_apply(
+        agent: AgentBot,
+        existing_ids: set[str],
+        replace_existing: bool,
+    ) -> AgentBot:
+        if replace_existing or agent.id not in existing_ids:
+            return agent
+        return agent.model_copy(update={"id": _dedupe_slug(agent.id, existing_ids)})
+
+    @staticmethod
+    def _normalize_workflow_for_apply(
+        workflow: WorkflowDefinition,
+        existing_ids: set[str],
+        replace_existing: bool,
+    ) -> WorkflowDefinition:
+        if replace_existing or workflow.id not in existing_ids:
+            return workflow
+
+        workflow_id = _dedupe_slug(workflow.id, existing_ids)
+        step_id_map = {
+            step.id: _dedupe_slug(step.id, set())
+            for step in workflow.steps
+        }
+        updated_steps = [
+            step.model_copy(
+                update={
+                    "id": step_id_map[step.id],
+                    "depends_on": [step_id_map.get(dep, dep) for dep in step.depends_on],
+                }
+            )
+            for step in workflow.steps
+        ]
+        return workflow.model_copy(update={"id": workflow_id, "steps": updated_steps})
 
     def list_agents(self) -> list[LeadBot | AgentBot]:
         manifest = self.load_manifest()
@@ -500,6 +624,355 @@ class StudioManifestService:
         agent_map: dict[str, LeadBot | AgentBot] = {manifest.lead_bot.id: manifest.lead_bot}
         agent_map.update({agent.id: agent for agent in manifest.agents})
         return agent_map
+
+
+def _dedupe_slug(candidate: str, existing_ids: set[str]) -> str:
+    if candidate not in existing_ids:
+        return candidate
+    index = 2
+    while f"{candidate}-{index}" in existing_ids:
+        index += 1
+    return f"{candidate}-{index}"
+
+
+def _slugify(value: str, fallback: str) -> str:
+    output = []
+    last_dash = False
+    for char in value.lower():
+        if char.isascii() and char.isalnum():
+            output.append(char)
+            last_dash = False
+            continue
+        if char in {" ", "-", "_", "/", "|"} and not last_dash:
+            output.append("-")
+            last_dash = True
+    slug = "".join(output).strip("-")
+    return slug or fallback
+
+
+def _infer_studio_name(brief: str) -> str:
+    brief_lower = brief.lower()
+    if any(keyword in brief_lower for keyword in ["content", "marketing", "campaign", "social"]):
+        return "LeadBot Content Studio"
+    if any(keyword in brief_lower for keyword in ["app", "product", "code", "build", "automation"]):
+        return "LeadBot Build Studio"
+    if any(keyword in brief for keyword in ["内容", "营销", "发布", "增长"]):
+        return "LeadBot 内容工作室"
+    if any(keyword in brief for keyword in ["开发", "产品", "代码", "自动化", "系统"]):
+        return "LeadBot 研发工作室"
+    return "LeadBot Custom Studio"
+
+
+def _select_agent_templates_for_brief(brief_lower: str) -> list[str]:
+    selected: list[str] = []
+    if any(keyword in brief_lower for keyword in ["research", "analysis", "brief", "insight"]):
+        selected.append("researcher")
+    if any(keyword in brief_lower for keyword in ["build", "product", "code", "app", "automation"]):
+        selected.append("builder")
+    if any(keyword in brief_lower for keyword in ["qa", "test", "review", "quality", "stability"]):
+        selected.append("qa")
+    if any(keyword in brief_lower for keyword in ["publish", "launch", "marketing", "content", "social"]):
+        selected.append("publisher")
+
+    if any(keyword in brief_lower for keyword in ["研究", "分析", "调研", "brief"]):
+        selected.append("researcher")
+    if any(keyword in brief_lower for keyword in ["开发", "代码", "产品", "自动化", "系统", "网站", "应用"]):
+        selected.append("builder")
+    if any(keyword in brief_lower for keyword in ["测试", "校验", "审核", "review", "验证"]):
+        selected.append("qa")
+    if any(keyword in brief_lower for keyword in ["发布", "上线", "营销", "内容", "增长", "运营"]):
+        selected.append("publisher")
+
+    if "researcher" not in selected:
+        selected.insert(0, "researcher")
+    if "builder" not in selected:
+        selected.append("builder")
+    if len(selected) < 3:
+        selected.append("qa")
+    if any(keyword in brief_lower for keyword in ["发布", "内容", "营销", "launch", "publish", "campaign"]) and "publisher" not in selected:
+        selected.append("publisher")
+
+    deduped: list[str] = []
+    for item in selected:
+        if item not in deduped:
+            deduped.append(item)
+    return deduped
+
+
+def _agent_template_catalog(openclaw_home: str) -> dict[str, dict[str, Any]]:
+    return {
+        "researcher": {
+            "id": "researcher",
+            "display_name": "ResearchBot",
+            "role": "Research Specialist",
+            "objective": "Gather source material, extract signal, and hand structured briefs to the rest of the studio.",
+            "remark": "Discovery, research, and insight generation specialist.",
+            "capabilities": ["research", "source validation", "briefing", "discovery"],
+            "handoff_tags": ["research", "brief", "handoff-ready"],
+            "notes": "Best used for discovery, research sprints, and operator brief creation.",
+            "metadata": {"template": "researcher"},
+            "skills": [
+                {
+                    "slug": "deep-research",
+                    "name": "Deep Research",
+                    "purpose": "Turn broad requests into source-backed research briefs.",
+                }
+            ],
+            "tool_policy": {
+                "allow": ["web.search", "docs.read", "files.write"],
+                "deny": ["publish", "prod.deploy"],
+            },
+        },
+        "builder": {
+            "id": "builder",
+            "display_name": "DevBot",
+            "role": "Development Specialist",
+            "objective": "Convert approved plans into implemented outputs with clear milestones and handoff notes.",
+            "remark": "Implementation and systems delivery specialist.",
+            "capabilities": ["implementation", "automation", "integration", "delivery"],
+            "handoff_tags": ["build", "implementation", "ready-for-review"],
+            "notes": "Best used for implementation, automation, and production output generation.",
+            "metadata": {"template": "builder"},
+            "skills": [
+                {
+                    "slug": "implementation-engine",
+                    "name": "Implementation Engine",
+                    "purpose": "Ship implementation slices with verification-ready handoff notes.",
+                }
+            ],
+            "tool_policy": {
+                "allow": ["files.write", "terminal.exec", "tests.run"],
+                "deny": ["prod.deploy"],
+            },
+        },
+        "qa": {
+            "id": "qa",
+            "display_name": "QABot",
+            "role": "Quality Specialist",
+            "objective": "Review output quality, catch gaps, and keep the workflow honest before delivery.",
+            "remark": "Review and release-readiness specialist.",
+            "capabilities": ["qa", "review", "validation", "release checks"],
+            "handoff_tags": ["qa", "review", "release-gate"],
+            "notes": "Best used for gating, validation, and operator-facing risk notes.",
+            "metadata": {"template": "qa"},
+            "skills": [
+                {
+                    "slug": "release-check",
+                    "name": "Release Check",
+                    "purpose": "Validate outputs against criteria and escalate residual risk.",
+                }
+            ],
+            "tool_policy": {
+                "allow": ["tests.run", "files.read", "terminal.exec"],
+                "deny": ["publish", "prod.deploy"],
+            },
+        },
+        "publisher": {
+            "id": "publisher",
+            "display_name": "PublishBot",
+            "role": "Publishing Specialist",
+            "objective": "Package approved work and adapt it for outward-facing delivery channels.",
+            "remark": "Release, delivery, and distribution specialist.",
+            "capabilities": ["publishing", "distribution", "packaging", "handoff"],
+            "handoff_tags": ["publish", "distribution", "done"],
+            "notes": "Best used for packaging the last mile and channel-ready outputs.",
+            "metadata": {"template": "publisher"},
+            "skills": [
+                {
+                    "slug": "delivery-packaging",
+                    "name": "Delivery Packaging",
+                    "purpose": "Prepare final deliverables for release and channel distribution.",
+                }
+            ],
+            "tool_policy": {
+                "allow": ["files.write", "docs.read", "terminal.exec"],
+                "deny": ["schema.migrate"],
+            },
+        },
+    }
+
+
+def _build_agent_from_template(
+    template_key: str,
+    brief: str,
+    openclaw_home: str,
+) -> AgentBot:
+    template = _agent_template_catalog(openclaw_home)[template_key]
+    workspace_root = f"{openclaw_home.rstrip('/')}/workspace-{template['id']}"
+    return AgentBot(
+        id=template["id"],
+        role=template["role"],
+        objective=f"{template['objective']} Current studio brief: {brief}",
+        identity=BotIdentity(
+            display_name=template["display_name"],
+            remark=template["remark"],
+        ),
+        workspace=WorkspaceProfile(
+            root=workspace_root,
+            soul_path=f"{workspace_root}/SOUL.md",
+            agents_path=f"{workspace_root}/AGENTS.md",
+            user_path=f"{workspace_root}/USER.md",
+            skills_dir=f"{workspace_root}/skills",
+            notes=template["notes"],
+        ),
+        capabilities=template["capabilities"],
+        skills=[
+            SkillAttachment(
+                slug=skill["slug"],
+                name=skill["name"],
+                purpose=skill["purpose"],
+            )
+            for skill in template["skills"]
+        ],
+        tool_policy=ToolPolicy(
+            allow=template["tool_policy"]["allow"],
+            deny=template["tool_policy"]["deny"],
+        ),
+        handoff_tags=template["handoff_tags"],
+        notes=template["notes"],
+        metadata=template["metadata"],
+    )
+
+
+def _build_workflow_from_brief(
+    brief: str,
+    lead_bot: LeadBot,
+    agents: list[AgentBot],
+) -> WorkflowDefinition:
+    workflow_slug = _slugify(brief[:48], "leadbot-flow")
+    agent_ids = {agent.id for agent in agents}
+    participants = [
+        WorkflowParticipant(
+            agent_id=lead_bot.id,
+            mode="lead",
+            responsibility="Translate the operator brief into delegated work and approve final outputs.",
+            notes="LeadBot always owns the intake and final decision loop.",
+        )
+    ]
+    for agent in agents:
+        mode = "owner"
+        responsibility = f"Own the {agent.role.lower()} slice of the workflow."
+        participants.append(
+            WorkflowParticipant(
+                agent_id=agent.id,
+                mode=mode,
+                responsibility=responsibility,
+                required_skills=[skill.slug for skill in agent.skills],
+                notes=agent.identity.remark,
+            )
+        )
+
+    steps: list[WorkflowStep] = [
+        WorkflowStep(
+            id="intake",
+            name="Lead Intake",
+            step_type="intake",
+            owner_agent_id=lead_bot.id,
+            objective="Interpret the operator request, set priorities, and hand off the first execution slice.",
+            instructions=f"Brief from operator: {brief}",
+            deliverables=["priority brief", "delegation plan"],
+            handoff_to=[agents[0].id] if agents else [],
+        )
+    ]
+
+    previous_step_id = "intake"
+    if "researcher" in agent_ids:
+        steps.append(
+            WorkflowStep(
+                id="research",
+                name="Research Briefing",
+                step_type="research",
+                owner_agent_id="researcher",
+                depends_on=[previous_step_id],
+                objective="Collect the context, risks, and source material required to execute the brief well.",
+                deliverables=["research brief", "source summary"],
+                handoff_to=["builder"] if "builder" in agent_ids else ["qa"] if "qa" in agent_ids else [lead_bot.id],
+            )
+        )
+        previous_step_id = "research"
+
+    if "builder" in agent_ids:
+        steps.append(
+            WorkflowStep(
+                id="build",
+                name="Build Output",
+                step_type="build",
+                owner_agent_id="builder",
+                depends_on=[previous_step_id],
+                objective="Produce the core implementation or working output for the brief.",
+                deliverables=["working output", "handoff notes"],
+                handoff_to=["qa"] if "qa" in agent_ids else ["publisher"] if "publisher" in agent_ids else [lead_bot.id],
+            )
+        )
+        previous_step_id = "build"
+
+    if "qa" in agent_ids:
+        steps.append(
+            WorkflowStep(
+                id="review",
+                name="QA Review",
+                step_type="qa",
+                owner_agent_id="qa",
+                depends_on=[previous_step_id],
+                objective="Validate the output, surface residual risk, and prepare the final handoff.",
+                deliverables=["qa findings", "approval notes"],
+                handoff_to=["publisher"] if "publisher" in agent_ids else [lead_bot.id],
+                approval_required=True,
+            )
+        )
+        previous_step_id = "review"
+
+    final_owner = "publisher" if "publisher" in agent_ids else lead_bot.id
+    final_type = "publish" if "publisher" in agent_ids else "custom"
+    steps.append(
+        WorkflowStep(
+            id="deliver",
+            name="Final Delivery",
+            step_type=final_type,
+            owner_agent_id=final_owner,
+            depends_on=[previous_step_id],
+            objective="Package the approved output and hand the final result back through LeadBot.",
+            deliverables=["final delivery", "operator summary"],
+            handoff_to=[lead_bot.id],
+            approval_required=final_owner != lead_bot.id,
+        )
+    )
+
+    return WorkflowDefinition(
+        id=workflow_slug,
+        name=f"{_infer_studio_name(brief)} Delivery Flow",
+        description=f"LeadBot-generated workflow for: {brief}",
+        trigger=brief,
+        lead_agent_id=lead_bot.id,
+        participants=participants,
+        steps=steps,
+        outputs=["final delivery", "operator-ready summary"],
+        success_criteria=[
+            "Each specialist has a clear ownership slice.",
+            "LeadBot can approve or redirect the final output.",
+            "The workflow includes dependency-aware handoffs.",
+        ],
+        tags=["leadbot-generated", "auto-wired", "brief-driven"],
+    )
+
+
+def _build_draft_rationale(
+    brief: str,
+    templates: list[str],
+    workflow: WorkflowDefinition,
+) -> list[str]:
+    rationale = [
+        f"LeadBot picked {len(templates)} specialist roles based on the brief: {', '.join(templates)}.",
+        "The workflow always starts with LeadBot intake so approvals and delegation stay centralized.",
+        "Dependencies are auto-wired in execution order so each handoff has a clear predecessor.",
+    ]
+    if any(step.approval_required for step in workflow.steps):
+        rationale.append("Approval gates were inserted before the final delivery stage.")
+    if any(template == "publisher" for template in templates):
+        rationale.append("A publishing stage was added because the brief implies outward-facing delivery.")
+    if any(template == "researcher" for template in templates):
+        rationale.append("A research stage was added so downstream agents start from a structured brief.")
+    return rationale
 
 
 def _default_manifest_payload() -> dict[str, Any]:

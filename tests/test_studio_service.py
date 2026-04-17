@@ -162,3 +162,55 @@ def test_dry_run_previews_queued_and_blocked_steps(tmp_path):
     assert "review" in preview.approval_steps
     assert preview.step_previews[0].status == "queued"
     assert preview.step_previews[1].status == "blocked"
+
+
+def test_leadbot_can_draft_connected_agents_and_workflow_from_brief(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    service = StudioManifestService(str(manifest_path))
+
+    draft = service.draft_studio_from_brief(
+        {
+            "brief": "我想做一个内容增长工作室，LeadBot 统筹，研究员负责选题，开发负责自动化，QA 负责审校，发布负责上线分发。",
+            "operator": "aha",
+        }
+    )
+
+    assert draft.studio_name
+    assert len(draft.suggested_agents) >= 4
+    assert {agent.id for agent in draft.suggested_agents} >= {
+        "researcher",
+        "builder",
+        "qa",
+        "publisher",
+    }
+    workflow = draft.suggested_workflows[0]
+    assert workflow.lead_agent_id == "studio-lead"
+    assert workflow.steps[0].id == "intake"
+    assert any(step.id == "deliver" for step in workflow.steps)
+    assert any(step.approval_required for step in workflow.steps)
+
+
+def test_apply_leadbot_draft_can_update_existing_studio(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    service = StudioManifestService(str(manifest_path))
+    draft = service.draft_studio_from_brief(
+        {
+            "brief": "Build a product launch studio with research, development, QA, and publishing.",
+        }
+    )
+
+    result = service.apply_draft_bundle(
+        {
+            "draft": draft.model_dump(mode="json"),
+            "replace_existing": True,
+        }
+    )
+    manifest = service.load_manifest()
+
+    assert "researcher" in result.updated_agents
+    assert "builder" in result.updated_agents
+    assert len(result.created_workflows) == 1
+    assert manifest.lead_bot.workflow_ids
+    assert any(
+        workflow.id in result.created_workflows for workflow in manifest.workflows
+    )

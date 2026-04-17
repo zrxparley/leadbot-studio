@@ -71,6 +71,7 @@ LeadBot 是控制平面，不是网关替代品。
 - 低代码 builder console，可通过 Web UI 创建、编辑、删除 AgentBot / Workflow
 - Workflow Builder 可视化依赖编排，支持 step graph、依赖预览、拖拽排序
 - AgentBot Builder 模板系统，内置 Researcher / Developer / QA / Publisher 骨架
+- LeadBot 对话起草，可根据自然语言 brief 自动生成并接好 AgentBot / Workflow 草案
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
 - 一个可直接 fork 的默认工作室模板
@@ -81,6 +82,8 @@ LeadBot 是控制平面，不是网关替代品。
 - `GET /studio/manifest`
 - `PUT /studio/manifest`
 - `GET /studio/summary`
+- `POST /studio/leadbot/draft`
+- `POST /studio/leadbot/apply-draft`
 - `GET /studio/agents`
 - `GET /studio/workflows`
 - `GET /studio/workflows/{workflow_id}/plan`

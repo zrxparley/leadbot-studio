@@ -24,6 +24,9 @@ def test_console_page_renders():
     assert "Low-code configuration" in response.text
     assert "New Agent" in response.text
     assert "New Workflow" in response.text
+    assert "Talk to LeadBot" in response.text
+    assert "Generate Studio Draft" in response.text
+    assert "Apply to Studio" in response.text
     assert "Flow Composer" in response.text
     assert "Drag steps to reorder" in response.text
     assert "Template System" in response.text
