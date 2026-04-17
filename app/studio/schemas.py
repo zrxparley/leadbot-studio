@@ -231,6 +231,39 @@ class LeadBotDraftChange(BaseModel):
     summary: str
 
 
+class LeadBotWorkflowParticipantChange(BaseModel):
+    agent_id: str
+    action: Literal["create", "update", "delete", "unchanged"]
+    summary: str
+    before_mode: str | None = None
+    after_mode: str | None = None
+
+
+class LeadBotWorkflowStepChange(BaseModel):
+    step_id: str
+    step_name: str
+    action: Literal["create", "update", "delete", "unchanged"]
+    summary: str
+    before_owner_agent_id: str | None = None
+    after_owner_agent_id: str | None = None
+    before_depends_on: list[str] = Field(default_factory=list)
+    after_depends_on: list[str] = Field(default_factory=list)
+    before_position: int | None = None
+    after_position: int | None = None
+    before_approval_required: bool | None = None
+    after_approval_required: bool | None = None
+
+
+class LeadBotWorkflowReview(BaseModel):
+    workflow_id: str
+    workflow_name: str
+    action: Literal["create", "update", "delete", "unchanged"]
+    summary: str
+    participant_changes: list[LeadBotWorkflowParticipantChange] = Field(default_factory=list)
+    step_changes: list[LeadBotWorkflowStepChange] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
 class LeadBotDraftDiff(BaseModel):
     created_agents: list[LeadBotDraftChange] = Field(default_factory=list)
     updated_agents: list[LeadBotDraftChange] = Field(default_factory=list)
@@ -240,6 +273,7 @@ class LeadBotDraftDiff(BaseModel):
     updated_workflows: list[LeadBotDraftChange] = Field(default_factory=list)
     deleted_workflows: list[LeadBotDraftChange] = Field(default_factory=list)
     unchanged_workflows: list[LeadBotDraftChange] = Field(default_factory=list)
+    workflow_reviews: list[LeadBotWorkflowReview] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
 

@@ -4,7 +4,12 @@ from types import SimpleNamespace
 import pytest
 
 from app.core.config import Settings
-from app.studio.schemas import LeadBotModelDraftResponse, StudioManifest, WorkflowRunRequest
+from app.studio.schemas import (
+    LeadBotDraftBundle,
+    LeadBotModelDraftResponse,
+    StudioManifest,
+    WorkflowRunRequest,
+)
 from app.studio.service import (
     AgentNotFoundError,
     EntityConflictError,
@@ -388,6 +393,50 @@ def test_draft_includes_manifest_diff_preview(tmp_path):
     assert draft.manifest_diff.created_workflows or draft.manifest_diff.updated_workflows
     assert draft.manifest_diff.deleted_agents
     assert draft.manifest_diff.warnings
+
+
+def test_manifest_diff_includes_workflow_step_review(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    service = StudioManifestService(str(manifest_path))
+    manifest = service.load_manifest()
+    workflow = manifest.workflows[0]
+    updated_workflow = workflow.model_copy(
+        update={
+            "steps": [
+                workflow.steps[0],
+                workflow.steps[2].model_copy(
+                    update={
+                        "depends_on": ["intake"],
+                        "approval_required": True,
+                    }
+                ),
+                workflow.steps[1].model_copy(
+                    update={
+                        "depends_on": [workflow.steps[2].id],
+                    }
+                ),
+                workflow.steps[3],
+            ]
+        }
+    )
+    draft = {
+        "studio_name": manifest.metadata.studio_name,
+        "brief": "Reorder and gate review before build.",
+        "leadbot_response": "Updated the workflow shape.",
+        "suggested_agents": [agent.model_dump(mode="json") for agent in manifest.agents],
+        "suggested_workflows": [
+            updated_workflow.model_dump(mode="json"),
+            manifest.workflows[1].model_dump(mode="json"),
+        ],
+    }
+
+    diff = service._build_manifest_diff(manifest, LeadBotDraftBundle.model_validate(draft))
+
+    assert diff.workflow_reviews
+    review = next(item for item in diff.workflow_reviews if item.workflow_id == workflow.id)
+    assert any(step.action == "update" for step in review.step_changes)
+    assert any("approval" in step.summary.lower() or "moved" in step.summary.lower() for step in review.step_changes)
+    assert review.notes
 
 
 def test_apply_draft_can_sync_remove_missing_entities(tmp_path):

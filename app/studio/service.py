@@ -19,6 +19,9 @@ from app.studio.schemas import (
     LeadBotDraftDiff,
     LeadBotExecutionRequest,
     LeadBotExecutionResult,
+    LeadBotWorkflowParticipantChange,
+    LeadBotWorkflowReview,
+    LeadBotWorkflowStepChange,
     LeadBotModelAgentDraft,
     LeadBotModelDraftResponse,
     LeadBotModelSkillDraft,
@@ -510,6 +513,9 @@ class StudioManifestService:
                 summary=summary,
             )
             getattr(diff, f"{action}d_workflows" if action != "unchanged" else "unchanged_workflows").append(change)
+            review = _build_workflow_review(existing_workflows.get(workflow_id), workflow)
+            if review is not None:
+                diff.workflow_reviews.append(review)
 
         for workflow_id, workflow in existing_workflows.items():
             if workflow_id in draft_workflows:
@@ -523,6 +529,9 @@ class StudioManifestService:
                     summary=f"{workflow.name} would be removed if you sync the draft to the studio.",
                 )
             )
+            review = _build_workflow_review(workflow, None)
+            if review is not None:
+                diff.workflow_reviews.append(review)
 
         if diff.deleted_agents or diff.deleted_workflows:
             diff.warnings.append(
@@ -1373,6 +1382,172 @@ def _build_follow_up_suggestions(
     if any(step.approval_required for step in workflow.steps):
         suggestions.append("去掉中间审批，只保留最终 LeadBot 审核。")
     return suggestions[:4]
+
+
+def _summarize_step_delta(
+    before: WorkflowStep | None,
+    after: WorkflowStep | None,
+    before_position: int | None,
+    after_position: int | None,
+) -> str:
+    if before is None and after is not None:
+        return f"Add step {after.name} at position {after_position}."
+    if before is not None and after is None:
+        return f"Remove step {before.name} from the workflow."
+    assert before is not None and after is not None
+    changes: list[str] = []
+    if before.owner_agent_id != after.owner_agent_id:
+        changes.append(f"owner {before.owner_agent_id} -> {after.owner_agent_id}")
+    if before.depends_on != after.depends_on:
+        changes.append("dependencies changed")
+    if before.approval_required != after.approval_required:
+        changes.append(
+            "approval added" if after.approval_required else "approval removed"
+        )
+    if before_position != after_position:
+        changes.append(f"moved {before_position} -> {after_position}")
+    if before.deliverables != after.deliverables:
+        changes.append("deliverables updated")
+    if before.handoff_to != after.handoff_to:
+        changes.append("handoff targets updated")
+    if not changes:
+        return f"Keep step {after.name} unchanged."
+    return f"Update step {after.name}: {', '.join(changes)}."
+
+
+def _build_workflow_review(
+    before: WorkflowDefinition | None,
+    after: WorkflowDefinition | None,
+) -> LeadBotWorkflowReview | None:
+    if before is None and after is None:
+        return None
+
+    workflow_id = after.id if after is not None else before.id
+    workflow_name = after.name if after is not None else before.name
+    if before is None:
+        action = "create"
+        summary = f"Create workflow {workflow_name}."
+    elif after is None:
+        action = "delete"
+        summary = f"Delete workflow {workflow_name}."
+    elif before.model_dump(mode="json") == after.model_dump(mode="json"):
+        action = "unchanged"
+        summary = f"Keep workflow {workflow_name} unchanged."
+    else:
+        action = "update"
+        summary = f"Review step flow, participants, and approvals for {workflow_name}."
+
+    before_participants = {item.agent_id: item for item in before.participants} if before else {}
+    after_participants = {item.agent_id: item for item in after.participants} if after else {}
+    participant_changes: list[LeadBotWorkflowParticipantChange] = []
+    for agent_id in sorted(set(before_participants) | set(after_participants)):
+        before_item = before_participants.get(agent_id)
+        after_item = after_participants.get(agent_id)
+        if before_item is None and after_item is not None:
+            participant_changes.append(
+                LeadBotWorkflowParticipantChange(
+                    agent_id=agent_id,
+                    action="create",
+                    summary=f"Add participant {agent_id} as {after_item.mode}.",
+                    after_mode=after_item.mode,
+                )
+            )
+            continue
+        if before_item is not None and after_item is None:
+            participant_changes.append(
+                LeadBotWorkflowParticipantChange(
+                    agent_id=agent_id,
+                    action="delete",
+                    summary=f"Remove participant {agent_id} from the workflow.",
+                    before_mode=before_item.mode,
+                )
+            )
+            continue
+        assert before_item is not None and after_item is not None
+        if before_item.model_dump(mode="json") == after_item.model_dump(mode="json"):
+            participant_changes.append(
+                LeadBotWorkflowParticipantChange(
+                    agent_id=agent_id,
+                    action="unchanged",
+                    summary=f"Keep participant {agent_id} as {after_item.mode}.",
+                    before_mode=before_item.mode,
+                    after_mode=after_item.mode,
+                )
+            )
+        else:
+            participant_changes.append(
+                LeadBotWorkflowParticipantChange(
+                    agent_id=agent_id,
+                    action="update",
+                    summary=f"Update participant {agent_id} responsibilities or mode.",
+                    before_mode=before_item.mode,
+                    after_mode=after_item.mode,
+                )
+            )
+
+    before_steps = {item.id: item for item in before.steps} if before else {}
+    after_steps = {item.id: item for item in after.steps} if after else {}
+    before_positions = {item.id: index + 1 for index, item in enumerate(before.steps)} if before else {}
+    after_positions = {item.id: index + 1 for index, item in enumerate(after.steps)} if after else {}
+    step_changes: list[LeadBotWorkflowStepChange] = []
+    for step_id in sorted(set(before_steps) | set(after_steps), key=lambda item: (after_positions.get(item, 999), before_positions.get(item, 999), item)):
+        before_step = before_steps.get(step_id)
+        after_step = after_steps.get(step_id)
+        if before_step is None and after_step is not None:
+            action_name = "create"
+            step_name = after_step.name
+        elif before_step is not None and after_step is None:
+            action_name = "delete"
+            step_name = before_step.name
+        elif before_step is not None and after_step is not None and before_step.model_dump(mode="json") == after_step.model_dump(mode="json") and before_positions.get(step_id) == after_positions.get(step_id):
+            action_name = "unchanged"
+            step_name = after_step.name
+        else:
+            action_name = "update"
+            step_name = (after_step or before_step).name
+        step_changes.append(
+            LeadBotWorkflowStepChange(
+                step_id=step_id,
+                step_name=step_name,
+                action=action_name,
+                summary=_summarize_step_delta(
+                    before_step,
+                    after_step,
+                    before_positions.get(step_id),
+                    after_positions.get(step_id),
+                ),
+                before_owner_agent_id=before_step.owner_agent_id if before_step else None,
+                after_owner_agent_id=after_step.owner_agent_id if after_step else None,
+                before_depends_on=before_step.depends_on if before_step else [],
+                after_depends_on=after_step.depends_on if after_step else [],
+                before_position=before_positions.get(step_id),
+                after_position=after_positions.get(step_id),
+                before_approval_required=(
+                    before_step.approval_required if before_step is not None else None
+                ),
+                after_approval_required=(
+                    after_step.approval_required if after_step is not None else None
+                ),
+            )
+        )
+
+    notes: list[str] = []
+    if before and after and [step.id for step in before.steps] != [step.id for step in after.steps]:
+        notes.append("Step order changed.")
+    if before and after and [participant.agent_id for participant in before.participants] != [participant.agent_id for participant in after.participants]:
+        notes.append("Participant roster changed.")
+    if after and any(step.approval_required for step in after.steps):
+        notes.append("Workflow contains approval gates.")
+
+    return LeadBotWorkflowReview(
+        workflow_id=workflow_id,
+        workflow_name=workflow_name,
+        action=action,
+        summary=summary,
+        participant_changes=participant_changes,
+        step_changes=step_changes,
+        notes=notes,
+    )
 
 
 def _resolve_template_hint(agent_draft: LeadBotModelAgentDraft) -> str:

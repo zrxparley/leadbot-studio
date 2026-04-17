@@ -886,6 +886,33 @@
         background: rgba(159, 55, 50, 0.08);
       }
 
+      .review-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .review-block {
+        padding: 16px;
+        border-radius: 20px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .review-columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 14px;
+      }
+
+      .review-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
       .leadbot-chat {
         display: flex;
         flex-direction: column;
@@ -984,6 +1011,7 @@
         .prelude,
         .template-grid,
         .graph-stats,
+        .review-columns,
         .diff-grid,
         .leadbot-compose {
           grid-template-columns: 1fr;
@@ -1962,6 +1990,7 @@
       }
 
       function renderLeadBotDiff(diff) {
+        const workflowReviews = diff.workflow_reviews || [];
         const buckets = [
           {
             title: "Agent Changes",
@@ -1988,6 +2017,76 @@
             </div>
           `
           : "";
+        const reviewMarkup = workflowReviews.length
+          ? `
+            <div class="control-card">
+              <div class="section-kicker">Workflow Review</div>
+              <div class="meta" style="margin-top: 8px;">LeadBot highlights step order, dependency, ownership, and approval changes so you can review the actual flow delta before syncing.</div>
+              <div class="review-stack" style="margin-top: 14px;">
+                ${workflowReviews
+                  .map(
+                    (review) => `
+                      <article class="review-block">
+                        <div class="split">
+                          <div>
+                            <strong>${escapeHtml(review.workflow_name)}</strong>
+                            <div class="meta">${escapeHtml(review.summary)}</div>
+                          </div>
+                          <span class="pill">${escapeHtml(review.action)}</span>
+                        </div>
+                        ${(review.notes || []).length
+                          ? `<div class="pill-row" style="margin-top: 12px;">${review.notes.map((note) => `<span class="pill">${escapeHtml(note)}</span>`).join("")}</div>`
+                          : ""}
+                        <div class="review-columns">
+                          <div class="diff-card">
+                            <div class="section-kicker">Participants</div>
+                            <div class="review-list">
+                              ${(review.participant_changes || []).length
+                                ? review.participant_changes
+                                    .map(
+                                      (item) => `
+                                        <article class="diff-item" data-action="${escapeHtml(item.action)}">
+                                          <div class="split">
+                                            <strong>${escapeHtml(item.agent_id)}</strong>
+                                            <span class="pill">${escapeHtml(item.action)}</span>
+                                          </div>
+                                          <div class="meta">${escapeHtml(item.summary)}</div>
+                                        </article>
+                                      `
+                                    )
+                                    .join("")
+                                : '<div class="empty">No participant changes.</div>'}
+                            </div>
+                          </div>
+                          <div class="diff-card">
+                            <div class="section-kicker">Steps</div>
+                            <div class="review-list">
+                              ${(review.step_changes || []).length
+                                ? review.step_changes
+                                    .map(
+                                      (item) => `
+                                        <article class="diff-item" data-action="${escapeHtml(item.action)}">
+                                          <div class="split">
+                                            <strong>${escapeHtml(item.step_name)}</strong>
+                                            <span class="pill">${escapeHtml(item.action)}</span>
+                                          </div>
+                                          <div class="meta">${escapeHtml(item.summary)}</div>
+                                        </article>
+                                      `
+                                    )
+                                    .join("")
+                                : '<div class="empty">No step changes.</div>'}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    `
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+          : "";
         elements.leadbotDiffPreview.innerHTML = `
           <div class="control-card">
             <div class="split">
@@ -2003,6 +2102,7 @@
             </div>
           </div>
           ${warningMarkup}
+          ${reviewMarkup}
           <div class="diff-grid">
             ${buckets
               .map(

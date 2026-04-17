@@ -75,6 +75,7 @@ LeadBot 是控制平面，不是网关替代品。
 - LeadBot 模型起草引擎，支持“模型优先，规则回退”
 - LeadBot 对话 refinement，可带着当前 draft 和对话历史继续用自然语言微调
 - LeadBot manifest impact diff，可预览新增 / 更新 / 删除哪些 AgentBot 与 Workflow
+- LeadBot workflow review，可预览 step 顺序、依赖、owner、approval gate 的具体变化
 - LeadBot execute 模式，可直接通过自然语言 `Send & Apply` 同步工作室
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
