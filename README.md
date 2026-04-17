@@ -74,6 +74,8 @@ LeadBot 是控制平面，不是网关替代品。
 - LeadBot 对话起草，可根据自然语言 brief 自动生成并接好 AgentBot / Workflow 草案
 - LeadBot 模型起草引擎，支持“模型优先，规则回退”
 - LeadBot 对话 refinement，可带着当前 draft 和对话历史继续用自然语言微调
+- LeadBot manifest impact diff，可预览新增 / 更新 / 删除哪些 AgentBot 与 Workflow
+- LeadBot execute 模式，可直接通过自然语言 `Send & Apply` 同步工作室
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
 - 一个可直接 fork 的默认工作室模板
@@ -85,6 +87,7 @@ LeadBot 是控制平面，不是网关替代品。
 - `PUT /studio/manifest`
 - `GET /studio/summary`
 - `POST /studio/leadbot/draft`
+- `POST /studio/leadbot/execute`
 - `POST /studio/leadbot/apply-draft`
 - `GET /studio/agents`
 - `GET /studio/workflows`
@@ -183,6 +186,11 @@ app/data/leadbot_studio_manifest.json
 - `我想做一个产品发布工作室，LeadBot 统筹，研究员负责素材，发布 Agent 负责多渠道分发。`
 - `把 QA 改成只在最终交付前介入。`
 - `再加一个运营 Agent，专门做上线后的复盘和数据回收。`
+
+控制台现在支持两种节奏：
+
+- `Send to LeadBot`：先起草，再看 impact diff，然后决定是否应用
+- `Send & Apply`：直接把这句自然语言变成 studio 变更并同步到 manifest
 
 ## OpenClaw 对接思路
 

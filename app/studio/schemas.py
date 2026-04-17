@@ -223,6 +223,26 @@ class LeadBotModelDraftResponse(BaseModel):
     workflow: LeadBotModelWorkflowDraft
 
 
+class LeadBotDraftChange(BaseModel):
+    entity_type: Literal["agent", "workflow"]
+    entity_id: str
+    action: Literal["create", "update", "delete", "unchanged"]
+    label: str
+    summary: str
+
+
+class LeadBotDraftDiff(BaseModel):
+    created_agents: list[LeadBotDraftChange] = Field(default_factory=list)
+    updated_agents: list[LeadBotDraftChange] = Field(default_factory=list)
+    deleted_agents: list[LeadBotDraftChange] = Field(default_factory=list)
+    unchanged_agents: list[LeadBotDraftChange] = Field(default_factory=list)
+    created_workflows: list[LeadBotDraftChange] = Field(default_factory=list)
+    updated_workflows: list[LeadBotDraftChange] = Field(default_factory=list)
+    deleted_workflows: list[LeadBotDraftChange] = Field(default_factory=list)
+    unchanged_workflows: list[LeadBotDraftChange] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+
+
 class LeadBotDraftBundle(BaseModel):
     studio_name: str
     brief: str
@@ -233,6 +253,7 @@ class LeadBotDraftBundle(BaseModel):
     suggested_next_prompts: list[str] = Field(default_factory=list)
     suggested_agents: list[AgentBot] = Field(default_factory=list)
     suggested_workflows: list[WorkflowDefinition] = Field(default_factory=list)
+    manifest_diff: LeadBotDraftDiff = Field(default_factory=LeadBotDraftDiff)
 
 
 class LeadBotDraftRequest(BaseModel):
@@ -246,13 +267,28 @@ class LeadBotDraftRequest(BaseModel):
 class LeadBotDraftApplyRequest(BaseModel):
     draft: LeadBotDraftBundle
     replace_existing: bool = False
+    sync_removed_entities: bool = False
 
 
 class LeadBotDraftApplyResult(BaseModel):
     created_agents: list[str] = Field(default_factory=list)
     updated_agents: list[str] = Field(default_factory=list)
+    deleted_agents: list[str] = Field(default_factory=list)
     created_workflows: list[str] = Field(default_factory=list)
     updated_workflows: list[str] = Field(default_factory=list)
+    deleted_workflows: list[str] = Field(default_factory=list)
+
+
+class LeadBotExecutionRequest(LeadBotDraftRequest):
+    auto_apply: bool = False
+    replace_existing: bool = True
+    sync_removed_entities: bool = True
+
+
+class LeadBotExecutionResult(BaseModel):
+    draft: LeadBotDraftBundle
+    applied: bool = False
+    apply_result: LeadBotDraftApplyResult | None = None
 
 
 class StudioMetadata(BaseModel):

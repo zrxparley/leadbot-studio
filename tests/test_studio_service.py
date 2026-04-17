@@ -375,3 +375,84 @@ def test_leadbot_model_failure_falls_back_to_builtin_planner(tmp_path):
 
     assert draft.draft_source == "fallback"
     assert any("fallback" in item.lower() for item in draft.rationale)
+
+
+def test_draft_includes_manifest_diff_preview(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    service = StudioManifestService(str(manifest_path))
+
+    draft = service.draft_studio_from_brief(
+        {"brief": "Create a launch studio with research and publishing only."}
+    )
+
+    assert draft.manifest_diff.created_workflows or draft.manifest_diff.updated_workflows
+    assert draft.manifest_diff.deleted_agents
+    assert draft.manifest_diff.warnings
+
+
+def test_apply_draft_can_sync_remove_missing_entities(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    service = StudioManifestService(str(manifest_path))
+    manifest = service.load_manifest()
+    builder = next(agent for agent in manifest.agents if agent.id == "builder")
+    workflow = manifest.workflows[0].model_copy(
+        update={
+            "id": "builder-only",
+            "name": "Builder Only",
+            "participants": [
+                participant
+                for participant in manifest.workflows[0].participants
+                if participant.agent_id in {"studio-lead", "builder"}
+            ],
+            "steps": [
+                step.model_copy(
+                    update={
+                        "owner_agent_id": "builder" if step.id != "intake" else "studio-lead",
+                        "handoff_to": [
+                            target for target in step.handoff_to if target in {"studio-lead", "builder"}
+                        ],
+                    }
+                )
+                for step in manifest.workflows[0].steps
+            ],
+        }
+    )
+    trimmed_draft = {
+        "studio_name": "Trimmed Studio",
+        "brief": "Keep only builder flow.",
+        "leadbot_response": "Trim to builder-only operations.",
+        "suggested_agents": [builder.model_dump(mode="json")],
+        "suggested_workflows": [workflow.model_dump(mode="json")],
+    }
+
+    result = service.apply_draft_bundle(
+        {
+            "draft": trimmed_draft,
+            "replace_existing": True,
+            "sync_removed_entities": True,
+        }
+    )
+    updated = service.load_manifest()
+
+    assert "publisher" in result.deleted_agents
+    assert "research-briefing" in result.deleted_workflows
+    assert {agent.id for agent in updated.agents} == {"builder"}
+    assert {workflow.id for workflow in updated.workflows} == {workflow.id}
+
+
+def test_execute_leadbot_instruction_can_auto_apply(tmp_path):
+    manifest_path = tmp_path / "leadbot_studio_manifest.json"
+    service = StudioManifestService(str(manifest_path))
+
+    result = service.execute_leadbot_instruction(
+        {
+            "brief": "Create a content launch studio with research, QA, and publishing.",
+            "auto_apply": True,
+            "replace_existing": True,
+            "sync_removed_entities": False,
+        }
+    )
+
+    assert result.applied is True
+    assert result.apply_result is not None
+    assert result.draft.manifest_diff is not None

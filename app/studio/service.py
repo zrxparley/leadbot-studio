@@ -15,6 +15,10 @@ from app.studio.schemas import (
     LeadBotDraftApplyRequest,
     LeadBotDraftApplyResult,
     LeadBotDraftBundle,
+    LeadBotDraftChange,
+    LeadBotDraftDiff,
+    LeadBotExecutionRequest,
+    LeadBotExecutionResult,
     LeadBotModelAgentDraft,
     LeadBotModelDraftResponse,
     LeadBotModelSkillDraft,
@@ -131,6 +135,33 @@ class StudioManifestService:
                 return fallback
         return self._draft_with_rules(prompt, manifest)
 
+    def execute_leadbot_instruction(
+        self,
+        request: LeadBotExecutionRequest | dict[str, Any],
+    ) -> LeadBotExecutionResult:
+        execution_request = (
+            request
+            if isinstance(request, LeadBotExecutionRequest)
+            else LeadBotExecutionRequest.model_validate(request)
+        )
+        draft = self.draft_studio_from_brief(
+            LeadBotDraftRequest.model_validate(execution_request.model_dump(mode="json"))
+        )
+        if not execution_request.auto_apply:
+            return LeadBotExecutionResult(draft=draft, applied=False)
+        apply_result = self.apply_draft_bundle(
+            LeadBotDraftApplyRequest(
+                draft=draft,
+                replace_existing=execution_request.replace_existing,
+                sync_removed_entities=execution_request.sync_removed_entities,
+            )
+        )
+        return LeadBotExecutionResult(
+            draft=draft,
+            applied=True,
+            apply_result=apply_result,
+        )
+
     def _draft_with_rules(
         self,
         request: LeadBotDraftRequest,
@@ -145,7 +176,7 @@ class StudioManifestService:
         ]
         workflow = _build_workflow_from_brief(brief, manifest.lead_bot, agents)
         rationale = _build_draft_rationale(brief, templates, workflow)
-        return LeadBotDraftBundle(
+        draft = LeadBotDraftBundle(
             studio_name=_infer_studio_name(brief),
             brief=brief,
             draft_source="deterministic",
@@ -159,6 +190,8 @@ class StudioManifestService:
             suggested_agents=agents,
             suggested_workflows=[workflow],
         )
+        draft.manifest_diff = self._build_manifest_diff(manifest, draft)
+        return draft
 
     def _draft_with_model(
         self,
@@ -203,7 +236,7 @@ class StudioManifestService:
             agents=agents,
             agent_id_map=agent_id_map,
         )
-        return LeadBotDraftBundle(
+        draft = LeadBotDraftBundle(
             studio_name=model_draft.studio_name or _infer_studio_name(request.brief),
             brief=request.brief.strip(),
             draft_source="model",
@@ -223,15 +256,15 @@ class StudioManifestService:
             suggested_agents=agents,
             suggested_workflows=[workflow],
         )
+        draft.manifest_diff = self._build_manifest_diff(manifest, draft)
+        return draft
 
     def _build_model_input(
         self,
         request: LeadBotDraftRequest,
         manifest: StudioManifest,
     ) -> list[dict[str, Any]]:
-        current_draft = None
-        if request.current_draft:
-            current_draft = LeadBotDraftBundle.model_validate(request.current_draft)
+        current_draft = self._resolve_current_draft(request, manifest)
         template_catalog = _agent_template_catalog(manifest.defaults.openclaw_home)
         studio_context = {
             "studio": manifest.metadata.model_dump(mode="json"),
@@ -299,17 +332,24 @@ class StudioManifestService:
                         "operator": request.operator,
                         "brief": request.brief.strip(),
                         "conversation": [turn.model_dump(mode="json") for turn in request.conversation],
-                        "current_draft": (
-                            current_draft.model_dump(mode="json")
-                            if current_draft is not None
-                            else None
-                        ),
+                        "current_draft": current_draft.model_dump(mode="json") if current_draft else None,
                         "studio_context": studio_context,
                     },
                     ensure_ascii=False,
                 ),
             },
         ]
+
+    def _resolve_current_draft(
+        self,
+        request: LeadBotDraftRequest,
+        manifest: StudioManifest,
+    ) -> LeadBotDraftBundle | None:
+        if request.current_draft:
+            return LeadBotDraftBundle.model_validate(request.current_draft)
+        if request.conversation:
+            return None
+        return self._snapshot_manifest_as_draft(manifest, request.brief.strip())
 
     def _should_use_model(self, request: LeadBotDraftRequest) -> bool:
         if not request.prefer_model:
@@ -351,6 +391,8 @@ class StudioManifestService:
         existing_agent_ids = {agent.id for agent in manifest.agents}
         existing_workflow_ids = {workflow.id for workflow in manifest.workflows}
         result = LeadBotDraftApplyResult()
+        target_agent_ids = {agent.id for agent in apply_request.draft.suggested_agents}
+        target_workflow_ids = {workflow.id for workflow in apply_request.draft.suggested_workflows}
 
         for agent in apply_request.draft.suggested_agents:
             normalized_agent = self._normalize_agent_for_apply(
@@ -380,7 +422,117 @@ class StudioManifestService:
                 result.created_workflows.append(normalized_workflow.id)
                 existing_workflow_ids.add(normalized_workflow.id)
 
+        if apply_request.sync_removed_entities:
+            removable_workflows = sorted(existing_workflow_ids - target_workflow_ids)
+            for workflow_id in removable_workflows:
+                self.delete_workflow(workflow_id)
+                result.deleted_workflows.append(workflow_id)
+
+            removable_agents = sorted(existing_agent_ids - target_agent_ids)
+            for agent_id in removable_agents:
+                self.delete_agent(agent_id)
+                result.deleted_agents.append(agent_id)
+
         return result
+
+    def _snapshot_manifest_as_draft(
+        self,
+        manifest: StudioManifest,
+        brief: str,
+    ) -> LeadBotDraftBundle:
+        return LeadBotDraftBundle(
+            studio_name=manifest.metadata.studio_name,
+            brief=brief,
+            leadbot_response="Current studio snapshot used as LeadBot refinement context.",
+            draft_source="deterministic",
+            suggested_agents=[agent.model_copy(deep=True) for agent in manifest.agents],
+            suggested_workflows=[workflow.model_copy(deep=True) for workflow in manifest.workflows],
+        )
+
+    def _build_manifest_diff(
+        self,
+        manifest: StudioManifest,
+        draft: LeadBotDraftBundle,
+    ) -> LeadBotDraftDiff:
+        existing_agents = {agent.id: agent for agent in manifest.agents}
+        existing_workflows = {workflow.id: workflow for workflow in manifest.workflows}
+        draft_agents = {agent.id: agent for agent in draft.suggested_agents}
+        draft_workflows = {workflow.id: workflow for workflow in draft.suggested_workflows}
+        diff = LeadBotDraftDiff()
+
+        for agent_id, agent in draft_agents.items():
+            action = "create"
+            summary = f"Add specialist {agent.identity.display_name}."
+            if agent_id in existing_agents:
+                if agent.model_dump(mode="json") == existing_agents[agent_id].model_dump(mode="json"):
+                    action = "unchanged"
+                    summary = f"Keep {agent.identity.display_name} as-is."
+                else:
+                    action = "update"
+                    summary = f"Update {agent.identity.display_name} role, skills, or workflow ownership."
+            change = LeadBotDraftChange(
+                entity_type="agent",
+                entity_id=agent_id,
+                action=action,
+                label=agent.identity.display_name,
+                summary=summary,
+            )
+            getattr(diff, f"{action}d_agents" if action != "unchanged" else "unchanged_agents").append(change)
+
+        for agent_id, agent in existing_agents.items():
+            if agent_id in draft_agents:
+                continue
+            diff.deleted_agents.append(
+                LeadBotDraftChange(
+                    entity_type="agent",
+                    entity_id=agent_id,
+                    action="delete",
+                    label=agent.identity.display_name,
+                    summary=f"{agent.identity.display_name} would be removed if you sync the draft to the studio.",
+                )
+            )
+
+        for workflow_id, workflow in draft_workflows.items():
+            action = "create"
+            summary = f"Add workflow {workflow.name}."
+            if workflow_id in existing_workflows:
+                if workflow.model_dump(mode="json") == existing_workflows[workflow_id].model_dump(mode="json"):
+                    action = "unchanged"
+                    summary = f"Keep workflow {workflow.name} unchanged."
+                else:
+                    action = "update"
+                    summary = f"Rewire workflow {workflow.name} steps, participants, or approvals."
+            change = LeadBotDraftChange(
+                entity_type="workflow",
+                entity_id=workflow_id,
+                action=action,
+                label=workflow.name,
+                summary=summary,
+            )
+            getattr(diff, f"{action}d_workflows" if action != "unchanged" else "unchanged_workflows").append(change)
+
+        for workflow_id, workflow in existing_workflows.items():
+            if workflow_id in draft_workflows:
+                continue
+            diff.deleted_workflows.append(
+                LeadBotDraftChange(
+                    entity_type="workflow",
+                    entity_id=workflow_id,
+                    action="delete",
+                    label=workflow.name,
+                    summary=f"{workflow.name} would be removed if you sync the draft to the studio.",
+                )
+            )
+
+        if diff.deleted_agents or diff.deleted_workflows:
+            diff.warnings.append(
+                "This draft omits some existing studio entities. Use sync apply only if you want the live studio to match the draft exactly."
+            )
+        if not draft.suggested_agents:
+            diff.warnings.append("LeadBot did not return any specialist agents in this draft.")
+        if not draft.suggested_workflows:
+            diff.warnings.append("LeadBot did not return any workflows in this draft.")
+        return diff
 
     def get_summary(self) -> dict[str, Any]:
         manifest = self.load_manifest()

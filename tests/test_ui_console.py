@@ -26,9 +26,11 @@ def test_console_page_renders():
     assert "New Workflow" in response.text
     assert "Talk to LeadBot" in response.text
     assert "Send to LeadBot" in response.text
+    assert "Send & Apply" in response.text
     assert "Reset Thread" in response.text
     assert "Apply to Studio" in response.text
     assert "Vibe Prompts" in response.text
+    assert "Manifest Impact" in response.text
     assert "Flow Composer" in response.text
     assert "Drag steps to reorder" in response.text
     assert "Template System" in response.text
