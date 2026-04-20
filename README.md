@@ -83,6 +83,10 @@ LeadBot 是控制平面，不是网关替代品。
 - 一个可直接 fork 的默认工作室模板
 - **独立 Agents 配置页** (`/studio/agents-config`)：Agent 富卡片列表、头像预览、技能标签、直接 Edit / Delete
 - **Chat Vibe Coding 双栏工作台** (`/studio/chat`)：左栏多轮对话 + 右栏实时 Proposal Review 可视化（Mermaid workflow + manifest diff + 审批操作一体化）
+- **Workflow Visual Editor** (`/studio/workflows`)：独立工作流编辑页，拖拽排序 step，可视化 Mermaid graph，dry-run 和 dispatch 一体化
+- **Model Integration**：支持 OpenAI / Azure OpenAI / OpenAI-compatible 多 Provider，自动 fallback 到 deterministic
+- **Agent Avatar Upload**：支持上传头像图片（`POST /studio/upload/avatar`），存储在 `app/data/avatars/`
+- **Proposal Notification**：Navigation badge 显示 pending proposals 数量，30秒自动轮询更新
 
 ## 主要接口
 
@@ -107,6 +111,7 @@ LeadBot 是控制平面，不是网关替代品。
 - `GET /studio/runs/{run_id}/events`
 - `PATCH /studio/runs/{run_id}`
 - `PATCH /studio/runs/{run_id}/steps/{step_id}`
+- `POST /studio/runs/{run_id}/dispatch` (OpenClaw runtime bridge)
 - `GET /studio/openclaw/export`
 
 ## 项目结构
