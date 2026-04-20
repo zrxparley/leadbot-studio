@@ -202,15 +202,44 @@ class StudioManifestService:
         manifest: StudioManifest,
     ) -> LeadBotDraftBundle:
         client = self._build_openai_client()
-        model_response = client.responses.parse(
-            model=self.settings.leadbot_draft_model,
-            input=self._build_model_input(request, manifest),
-            text_format=LeadBotModelDraftResponse,
-        )
-        parsed = model_response.output_parsed
-        if parsed is None:
-            raise LeadBotModelDraftError("Structured output was empty.")
-        return self._hydrate_model_draft(request, manifest, parsed)
+        provider = self.settings.leadbot_draft_provider.lower().strip()
+
+        # Build model input
+        model_input = self._build_model_input(request, manifest)
+        model_name = self.settings.leadbot_draft_model
+
+        if provider == "azure":
+            # Azure OpenAI uses chat completions API with structured outputs
+            try:
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=model_input,
+                    response_format={"type": "json_object"},
+                    temperature=0.7,
+                )
+                raw_text = response.choices[0].message.content or "{}"
+                import json as _json
+                parsed_data = _json.loads(raw_text)
+                # Parse into LeadBotModelDraftResponse
+                model_response = LeadBotModelDraftResponse.model_validate(parsed_data)
+            except Exception as exc:
+                raise LeadBotModelDraftError(f"Azure OpenAI call failed: {exc}") from exc
+        else:
+            # OpenAI / OpenAI-compatible using Responses API (structured output)
+            try:
+                response = client.responses.parse(
+                    model=model_name,
+                    input=model_input,
+                    text_format=LeadBotModelDraftResponse,
+                )
+                parsed = response.output_parsed
+                if parsed is None:
+                    raise LeadBotModelDraftError("Structured output was empty.")
+                model_response = parsed
+            except Exception as exc:
+                raise LeadBotModelDraftError(f"Model call failed: {exc}") from exc
+
+        return self._hydrate_model_draft(request, manifest, model_response)
 
     def _hydrate_model_draft(
         self,
@@ -358,23 +387,41 @@ class StudioManifestService:
         if not request.prefer_model:
             return False
         provider = self.settings.leadbot_draft_provider.lower().strip()
-        if provider == "deterministic":
+        if provider in {"none", "deterministic", ""}:
             return False
-        if provider not in {"auto", "openai"}:
-            return False
-        return bool(self.settings.openai_api_key)
+        # Check if API key or endpoint is available
+        if provider in {"openai", "openai-compatible"}:
+            return bool(self.settings.openai_api_key)
+        if provider == "azure":
+            return bool(self.settings.azure_openai_endpoint and self.settings.azure_openai_key)
+        return False
 
     def _build_openai_client(self) -> Any:
-        if not self.settings.openai_api_key:
-            raise LeadBotModelDraftError("OPENAI_API_KEY is not configured.")
+        provider = self.settings.leadbot_draft_provider.lower().strip()
         try:
             from openai import OpenAI
         except ImportError as exc:
             raise LeadBotModelDraftError("openai package is not installed.") from exc
 
-        client_kwargs: dict[str, Any] = {"api_key": self.settings.openai_api_key}
-        if self.settings.openai_base_url:
-            client_kwargs["base_url"] = self.settings.openai_base_url
+        client_kwargs: dict[str, Any] = {}
+
+        if provider == "azure":
+            if not self.settings.azure_openai_endpoint:
+                raise LeadBotModelDraftError("AZURE_OPENAI_ENDPOINT is not configured.")
+            client_kwargs = {
+                "api_key": self.settings.azure_openai_key,
+                "azure_endpoint": self.settings.azure_openai_endpoint,
+                "azure_deployment": self.settings.leadbot_draft_model,
+                "api_version": self.settings.azure_openai_version,
+            }
+        else:
+            # OpenAI or OpenAI-compatible
+            if not self.settings.openai_api_key:
+                raise LeadBotModelDraftError("OPENAI_API_KEY is not configured.")
+            client_kwargs = {"api_key": self.settings.openai_api_key}
+            if self.settings.openai_base_url:
+                client_kwargs["base_url"] = self.settings.openai_base_url
+
         return OpenAI(**client_kwargs)
 
     def apply_draft_bundle(

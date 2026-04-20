@@ -133,6 +133,31 @@
         color: #fff8f2;
       }
 
+      .nav-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        margin-left: 6px;
+        border-radius: 999px;
+        background: var(--warning);
+        color: white;
+        font-size: 0.72rem;
+        font-weight: 600;
+        animation: badge-pulse 2s ease-in-out infinite;
+      }
+
+      .nav-badge[hidden] {
+        display: none;
+      }
+
+      @keyframes badge-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+      }
+
       .page-hidden {
         display: none !important;
       }
@@ -402,10 +427,142 @@
         align-items: start;
         padding: 12px 0;
         border-top: 1px solid rgba(23, 19, 16, 0.08);
+        transition: background 160ms ease, transform 160ms ease;
       }
 
       .step:first-child {
         border-top: none;
+      }
+
+      .step[draggable="true"] {
+        cursor: grab;
+        padding: 10px 12px;
+        margin: 4px 0;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
+      }
+
+      .step[draggable="true"]:active {
+        cursor: grabbing;
+      }
+
+      .step.drag-over {
+        background: rgba(37, 94, 105, 0.12);
+        border-color: var(--accent-cool);
+        transform: scale(1.02);
+      }
+
+      .step.dragging {
+        opacity: 0.5;
+        transform: scale(0.98);
+      }
+
+      .step-drag-handle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        background: rgba(23, 19, 16, 0.06);
+        color: var(--muted);
+        font-size: 0.85rem;
+        cursor: grab;
+        user-select: none;
+      }
+
+      .step-drag-handle:active {
+        cursor: grabbing;
+      }
+
+      .step-reorder-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .step-reorder-btn {
+        width: 24px;
+        height: 24px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+        color: var(--muted);
+        font-size: 0.7rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 160ms ease;
+      }
+
+      .step-reorder-btn:hover {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+      }
+
+      .step-reorder-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+
+      .avatar-upload-group {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .avatar-upload-group input[type="file"] {
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.76);
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      .avatar-upload-group input[type="file"]::file-selector-button {
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: none;
+        background: var(--accent);
+        color: white;
+        font-size: 0.78rem;
+        cursor: pointer;
+        margin-right: 8px;
+      }
+      .workflow-visual-editor {
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.68);
+        padding: 16px;
+        margin-top: 14px;
+      }
+
+      .workflow-visual-editor-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+
+      .workflow-steps-container {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-height: 100px;
+      }
+
+      .workflow-edit-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
         padding-top: 0;
       }
 
@@ -1124,7 +1281,10 @@
         <a id="navChat" class="button ghost small" href="/studio/chat">Chat</a>
         <a id="navAgents" class="button ghost small" href="/studio/agents-config">Agents</a>
         <a id="navWorkflows" class="button ghost small" href="/studio/workflows">Workflows</a>
-        <a id="navProposals" class="button ghost small" href="/studio/proposals">Proposals</a>
+        <a id="navProposals" class="button ghost small" href="/studio/proposals">
+          Proposals
+          <span id="proposalBadge" class="nav-badge" hidden>0</span>
+        </a>
       </nav>
       <section class="hero">
         <div class="hero-panel">
@@ -1455,6 +1615,101 @@
             </div>
           </div>
         </div>
+      <!-- ===== WORKFLOWS PAGE (Visual Editor) ===== -->
+      <section data-page-block="workflows" style="margin-top: 18px;">
+        <div class="hero" style="margin-bottom: 18px;">
+          <div class="hero-panel">
+            <div class="eyebrow">Workflow Studio</div>
+            <h1>Design. Wire. Dispatch.</h1>
+            <p class="hero-copy">
+              Visual workflow editor with drag-and-drop step reordering. Preview the flow as a graph, then dispatch runs to OpenClaw agents.
+            </p>
+            <div class="hero-actions">
+              <button id="wfNewButton" type="button">New Workflow</button>
+              <button id="wfRefreshButton" type="button" class="secondary">Refresh</button>
+            </div>
+          </div>
+          <div class="hero-panel">
+            <div class="summary-grid" style="grid-template-columns: repeat(2, 1fr);">
+              <div class="metric">
+                <div class="metric-label">Workflows</div>
+                <div id="wfCountMetric" class="metric-value">-</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Active Steps</div>
+                <div id="wfStepsMetric" class="metric-value">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Workflow Visual Editor -->
+        <div class="workflow-visual-editor">
+          <div class="workflow-visual-editor-header">
+            <div>
+              <h2 id="wfEditorTitle">Select a Workflow</h2>
+              <div id="wfEditorSubtitle" class="meta">Click on a workflow to edit its steps.</div>
+            </div>
+            <div class="pill-row">
+              <span id="wfEditStatus" class="statusline"></span>
+            </div>
+          </div>
+
+          <!-- Workflow selector -->
+          <div class="section" style="margin-bottom: 14px;">
+            <label class="field-label">Workflow</label>
+            <select id="wfSelector" class="field-input" style="width: 100%; padding: 10px 12px;">
+              <option value="">— Select workflow to edit —</option>
+            </select>
+          </div>
+
+          <!-- Steps container with drag-drop -->
+          <div id="wfStepsContainer" class="workflow-steps-container">
+            <div class="empty">Select a workflow above to view and edit its steps.</div>
+          </div>
+
+          <!-- Edit actions -->
+          <div class="workflow-edit-actions">
+            <button id="wfSaveButton" type="button" disabled>Save Changes</button>
+            <button id="wfRevertButton" class="secondary" type="button" disabled>Revert</button>
+            <button id="wfPreviewButton" class="ghost" type="button">Preview Graph</button>
+            <button id="wfDispatchButton" class="secondary" type="button">Dispatch Run</button>
+          </div>
+        </div>
+
+        <!-- Mermaid Graph Preview -->
+        <div id="wfMermaidContainer" class="panel" style="margin-top: 18px;">
+          <div class="panel-header">
+            <div>
+              <h3>Flow Visualization</h3>
+              <div class="panel-subtitle">Live Mermaid diagram of the current workflow.</div>
+            </div>
+            <button id="wfMermaidToggle" class="ghost small" type="button">Toggle View</button>
+          </div>
+          <div class="workflow-canvas" style="margin-top: 12px;">
+            <div id="wfMermaidCode" style="display: none;"></div>
+            <div id="wfMermaidSvg" style="min-height: 200px;"></div>
+          </div>
+        </div>
+
+        <!-- Quick Run Panel -->
+        <div class="panel" style="margin-top: 18px;">
+          <div class="panel-header">
+            <div>
+              <h3>Quick Run</h3>
+              <div class="panel-subtitle">Dispatch a dry-run to preview the execution plan.</div>
+            </div>
+          </div>
+          <div class="section">
+            <textarea id="wfRunInput" placeholder="Describe the operator intent for this run..."></textarea>
+            <div class="button-row" style="margin-top: 12px;">
+              <button id="wfDryRunButton" type="button">Dry Run</button>
+              <button id="wfRunButton" class="secondary" type="button">Dispatch</button>
+              <span id="wfRunStatus" class="statusline"></span>
+            </div>
+          </div>
+          <div id="wfRunPreview" class="section" style="margin-top: 14px;"></div>
+        </div>
       </section>
     </div>
 
@@ -1603,6 +1858,8 @@
             visible = allowed.includes("console");
           } else if (currentPage === "chat") {
             visible = allowed.includes("chat") || allowed.includes("chat-standalone");
+          } else if (currentPage === "workflows") {
+            visible = allowed.includes("workflows");
           } else {
             visible = allowed.includes(currentPage);
           }
@@ -2845,6 +3102,7 @@
           state.workflows = workflows;
           state.exportBundle = exportBundle;
           state.proposals = proposals;
+          updateProposalBadge(proposals);
           state.workflowPlans.clear();
           if (!state.selectedWorkflowId && workflows.length) {
             state.selectedWorkflowId = workflows[0].id;
@@ -3364,6 +3622,36 @@
           console.error(error);
           if (statusEl) statusEl.textContent = error.message || "Action failed.";
         }
+      }
+
+      // ===== Proposal Notification Badge =====
+      function updateProposalBadge(proposals) {
+        const badge = document.getElementById("proposalBadge");
+        if (!badge) return;
+
+        const pending = (proposals || []).filter(p => p.status === "pending").length;
+        if (pending > 0) {
+          badge.textContent = pending;
+          badge.hidden = false;
+        } else {
+          badge.hidden = true;
+        }
+      }
+
+      // Start polling for proposals
+      let proposalPollInterval = null;
+
+      function startProposalPolling() {
+        if (proposalPollInterval) return;
+        proposalPollInterval = setInterval(async () => {
+          try {
+            const proposals = await fetchJson("/studio/leadbot/proposals");
+            state.proposals = proposals;
+            updateProposalBadge(proposals);
+          } catch (e) {
+            // Silently ignore polling errors
+          }
+        }, 30000); // Poll every 30 seconds
       }
 
       function initChatPage() {
@@ -3917,8 +4205,11 @@
                 <input name="role" type="text" value="${escapeHtml(agent.role || "")}" />
               </div>
               <div class="field">
-                <label>Avatar URL</label>
-                <input name="avatar" type="text" value="${escapeHtml(agent.identity?.avatar || "")}" />
+                <label>Avatar</label>
+                <div class="avatar-upload-group">
+                  <input name="avatar_url" type="text" value="${escapeHtml(agent.identity?.avatar || "")}" placeholder="Avatar URL or upload image" />
+                  <input name="avatar_file" type="file" accept="image/*" capture="environment" />
+                </div>
               </div>
               <div class="field span-2">
                 <label>Objective</label>
@@ -4656,7 +4947,7 @@
           objective: form.querySelector('[name="objective"]').value.trim(),
           identity: {
             display_name: form.querySelector('[name="display_name"]').value.trim(),
-            avatar: nullable(form.querySelector('[name="avatar"]').value),
+            avatar: nullable(form.querySelector('[name="avatar_url"]').value),
             remark: nullable(form.querySelector('[name="remark"]').value),
           },
           workspace: {
@@ -4788,8 +5079,30 @@
         elements.editorStatus.textContent = "Saving configuration…";
         try {
           if (state.editor.kind === "agent") {
-            const payload = readAgentForm();
+            let payload = readAgentForm();
             validateAgentPayload(payload);
+
+            // Handle avatar upload if a file is selected
+            const avatarFileInput = elements.editorForm?.querySelector('[name="avatar_file"]');
+            if (avatarFileInput && avatarFileInput.files && avatarFileInput.files.length > 0) {
+              const file = avatarFileInput.files[0];
+              const formData = new FormData();
+              formData.append("file", file);
+
+              try {
+                const uploadResult = await fetch("/studio/upload/avatar", {
+                  method: "POST",
+                  body: formData,
+                });
+                if (uploadResult.ok) {
+                  const result = await uploadResult.json();
+                  payload.identity.avatar = result.url;
+                }
+              } catch (uploadError) {
+                console.warn("Avatar upload failed, using URL if provided:", uploadError);
+              }
+            }
+
             if (state.editor.mode === "create") {
               await fetchJson("/studio/agents", {
                 method: "POST",
@@ -4886,6 +5199,448 @@
         }
       });
 
+      elements.editorForm.addEventListener("change", () => {
+        if (state.editor.kind === "workflow") {
+          syncWorkflowBuilder();
+        }
+      });
+
+      // ===== Workflow Visual Editor (Dedicated Page) =====
+      let wfEditState = null;
+
+      function initWorkflowEditor() {
+        const wfSelector = document.getElementById("wfSelector");
+        const wfStepsContainer = document.getElementById("wfStepsContainer");
+        const wfEditorTitle = document.getElementById("wfEditorTitle");
+        const wfEditorSubtitle = document.getElementById("wfEditorSubtitle");
+        const wfEditStatus = document.getElementById("wfEditStatus");
+        const wfSaveButton = document.getElementById("wfSaveButton");
+        const wfRevertButton = document.getElementById("wfRevertButton");
+        const wfPreviewButton = document.getElementById("wfPreviewButton");
+        const wfDispatchButton = document.getElementById("wfDispatchButton");
+        const wfCountMetric = document.getElementById("wfCountMetric");
+        const wfStepsMetric = document.getElementById("wfStepsMetric");
+        const wfDryRunButton = document.getElementById("wfDryRunButton");
+        const wfRunButton = document.getElementById("wfRunButton");
+        const wfRunInput = document.getElementById("wfRunInput");
+        const wfRunStatus = document.getElementById("wfRunStatus");
+        const wfRunPreview = document.getElementById("wfRunPreview");
+        const wfNewButton = document.getElementById("wfNewButton");
+        const wfRefreshButton = document.getElementById("wfRefreshButton");
+
+        if (!wfSelector) return;
+
+        // Assign to elements for consistency
+        elements.wfSelector = wfSelector;
+        elements.wfStepsContainer = wfStepsContainer;
+        elements.wfEditorTitle = wfEditorTitle;
+        elements.wfEditorSubtitle = wfEditorSubtitle;
+        elements.wfEditStatus = wfEditStatus;
+        elements.wfSaveButton = wfSaveButton;
+        elements.wfRevertButton = wfRevertButton;
+        elements.wfPreviewButton = wfPreviewButton;
+        elements.wfDispatchButton = wfDispatchButton;
+        elements.wfCountMetric = wfCountMetric;
+        elements.wfStepsMetric = wfStepsMetric;
+        elements.wfDryRunButton = wfDryRunButton;
+        elements.wfRunButton = wfRunButton;
+        elements.wfRunInput = wfRunInput;
+        elements.wfRunStatus = wfRunStatus;
+        elements.wfRunPreview = wfRunPreview;
+        elements.wfNewButton = wfNewButton;
+        elements.wfRefreshButton = wfRefreshButton;
+
+        wfSelector.addEventListener("change", selectWorkflowForEdit);
+        wfSaveButton?.addEventListener("click", saveWorkflowEdit);
+        wfRevertButton?.addEventListener("click", revertWorkflowEdit);
+        wfPreviewButton?.addEventListener("click", toggleWorkflowMermaid);
+        wfDispatchButton?.addEventListener("click", dispatchWorkflowRun);
+        wfDryRunButton?.addEventListener("click", dryRunWorkflow);
+        wfRunButton?.addEventListener("click", dispatchWorkflowRun);
+        wfNewButton?.addEventListener("click", () => openWorkflowEditor());
+        wfRefreshButton?.addEventListener("click", refreshWorkflowEditor);
+
+        refreshWorkflowEditor();
+      }
+
+      function refreshWorkflowEditor() {
+        if (elements.wfCountMetric) {
+          elements.wfCountMetric.textContent = state.workflows.length;
+        }
+        let totalSteps = 0;
+        for (const wf of state.workflows) {
+          totalSteps += (wf.steps || []).length;
+        }
+        if (elements.wfStepsMetric) {
+          elements.wfStepsMetric.textContent = totalSteps;
+        }
+
+        if (elements.wfSelector) {
+          const currentVal = elements.wfSelector.value;
+          elements.wfSelector.innerHTML = '<option value="">— Select workflow to edit —</option>' +
+            state.workflows.map(wf =>
+              `<option value="${escapeHtml(wf.id)}">${escapeHtml(wf.name)} (${escapeHtml(wf.id)})</option>`
+            ).join("");
+          if (currentVal && state.workflows.find(w => w.id === currentVal)) {
+            elements.wfSelector.value = currentVal;
+          }
+        }
+      }
+
+      async function selectWorkflowForEdit() {
+        const workflowId = elements.wfSelector?.value;
+        if (!workflowId) {
+          resetWorkflowEditorState();
+          return;
+        }
+
+        let plan;
+        if (state.workflowPlans.has(workflowId)) {
+          plan = state.workflowPlans.get(workflowId);
+        } else {
+          try {
+            plan = await fetchJson(`/studio/workflows/${workflowId}/plan`);
+            state.workflowPlans.set(workflowId, plan);
+          } catch (error) {
+            if (elements.wfEditStatus) elements.wfEditStatus.textContent = "Failed to load workflow plan.";
+            return;
+          }
+        }
+
+        wfEditState = {
+          workflowId,
+          originalSteps: [...(plan.steps || [])],
+          editedSteps: [...(plan.steps || [])],
+          hasChanges: false,
+        };
+
+        if (elements.wfEditorTitle) elements.wfEditorTitle.textContent = plan.workflow_name || workflowId;
+        if (elements.wfEditorSubtitle) elements.wfEditorSubtitle.textContent = `Edit steps for workflow "${workflowId}". Drag to reorder.`;
+        if (elements.wfEditStatus) elements.wfEditStatus.textContent = "";
+        if (elements.wfSaveButton) elements.wfSaveButton.disabled = true;
+        if (elements.wfRevertButton) elements.wfRevertButton.disabled = true;
+
+        renderWorkflowStepsEditor();
+      }
+
+      function resetWorkflowEditorState() {
+        wfEditState = null;
+        if (elements.wfEditorTitle) elements.wfEditorTitle.textContent = "Select a Workflow";
+        if (elements.wfEditorSubtitle) elements.wfEditorSubtitle.textContent = "Click on a workflow to edit its steps.";
+        if (elements.wfStepsContainer) elements.wfStepsContainer.innerHTML = '<div class="empty">Select a workflow above to view and edit its steps.</div>';
+        if (elements.wfEditStatus) elements.wfEditStatus.textContent = "";
+        if (elements.wfSaveButton) elements.wfSaveButton.disabled = true;
+        if (elements.wfRevertButton) elements.wfRevertButton.disabled = true;
+      }
+
+      function renderWorkflowStepsEditor() {
+        if (!wfEditState || !elements.wfStepsContainer) return;
+
+        const steps = wfEditState.editedSteps;
+        if (!steps.length) {
+          elements.wfStepsContainer.innerHTML = '<div class="empty">This workflow has no steps.</div>';
+          return;
+        }
+
+        elements.wfStepsContainer.innerHTML = steps.map((step, index) => `
+          <div class="step" draggable="true" data-step-id="${escapeHtml(step.step_id)}" data-step-index="${index}">
+            <div class="step-drag-handle" title="Drag to reorder">⋮⋮</div>
+            <div style="flex: 1;">
+              <div class="step-title">${escapeHtml(step.name || step.step_id)}</div>
+              <div class="step-copy">${escapeHtml(step.objective || "")}</div>
+              <div class="pill-row" style="margin-top: 8px;">
+                <span class="pill">${escapeHtml(step.owner_display_name || step.owner_agent_id)}</span>
+                <span class="pill">${escapeHtml(step.step_type || step.type || "custom")}</span>
+                ${step.approval_required ? '<span class="pill status-awaiting_approval">approval</span>' : ''}
+              </div>
+              <div class="meta" style="margin-top: 6px;">
+                Depends on: ${escapeHtml((step.depends_on || []).join(", ") || "none")}
+              </div>
+            </div>
+            <div class="step-reorder-controls">
+              <button class="step-reorder-btn" data-action="move-up" data-index="${index}" ${index === 0 ? 'disabled' : ''}>↑</button>
+              <button class="step-reorder-btn" data-action="move-down" data-index="${index}" ${index === steps.length - 1 ? 'disabled' : ''}>↓</button>
+            </div>
+          </div>
+        `).join("");
+
+        attachStepDragHandlers();
+      }
+
+      function attachStepDragHandlers() {
+        const stepElements = elements.wfStepsContainer?.querySelectorAll(".step");
+        if (!stepElements) return;
+
+        let draggedElement = null;
+
+        stepElements.forEach((el) => {
+          el.addEventListener("dragstart", (e) => {
+            draggedElement = el;
+            el.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+          });
+
+          el.addEventListener("dragend", () => {
+            el.classList.remove("dragging");
+            draggedElement = null;
+            stepElements.forEach(se => se.classList.remove("drag-over"));
+          });
+
+          el.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            if (el !== draggedElement) {
+              el.classList.add("drag-over");
+            }
+          });
+
+          el.addEventListener("dragleave", () => {
+            el.classList.remove("drag-over");
+          });
+
+          el.addEventListener("drop", (e) => {
+            e.preventDefault();
+            el.classList.remove("drag-over");
+            if (el === draggedElement) return;
+
+            const fromIndex = parseInt(draggedElement.dataset.stepIndex);
+            const toIndex = parseInt(el.dataset.stepIndex);
+
+            if (fromIndex !== toIndex) {
+              const moved = wfEditState.editedSteps.splice(fromIndex, 1)[0];
+              wfEditState.editedSteps.splice(toIndex, 0, moved);
+              wfEditState.hasChanges = true;
+              onWorkflowEditChanged();
+              renderWorkflowStepsEditor();
+            }
+          });
+
+          // Move up/down buttons
+          el.querySelectorAll(".step-reorder-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const index = parseInt(btn.dataset.index);
+              const action = btn.dataset.action;
+              if (action === "move-up" && index > 0) {
+                const moved = wfEditState.editedSteps.splice(index, 1)[0];
+                wfEditState.editedSteps.splice(index - 1, 0, moved);
+                wfEditState.hasChanges = true;
+                onWorkflowEditChanged();
+                renderWorkflowStepsEditor();
+              } else if (action === "move-down" && index < wfEditState.editedSteps.length - 1) {
+                const moved = wfEditState.editedSteps.splice(index, 1)[0];
+                wfEditState.editedSteps.splice(index + 1, 0, moved);
+                wfEditState.hasChanges = true;
+                onWorkflowEditChanged();
+                renderWorkflowStepsEditor();
+              }
+            });
+          });
+        });
+      }
+
+      function onWorkflowEditChanged() {
+        if (!wfEditState) return;
+        wfEditState.hasChanges = true;
+        if (elements.wfEditStatus) elements.wfEditStatus.textContent = "Changes pending...";
+        if (elements.wfSaveButton) elements.wfSaveButton.disabled = false;
+        if (elements.wfRevertButton) elements.wfRevertButton.disabled = false;
+      }
+
+      async function saveWorkflowEdit() {
+        if (!wfEditState || !wfEditState.hasChanges) return;
+
+        const workflowId = wfEditState.workflowId;
+        const workflow = state.workflows.find(w => w.id === workflowId);
+        if (!workflow) return;
+
+        const updatedSteps = wfEditState.editedSteps.map((step) => {
+          const originalStep = (workflow.steps || []).find(s => s.id === step.step_id);
+          return originalStep ? { ...originalStep } : step;
+        });
+
+        try {
+          await fetchJson(`/studio/workflows/${workflowId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...workflow, steps: updatedSteps }),
+          });
+
+          wfEditState.hasChanges = false;
+          wfEditState.originalSteps = [...wfEditState.editedSteps];
+          if (elements.wfEditStatus) elements.wfEditStatus.textContent = "Saved!";
+          if (elements.wfSaveButton) elements.wfSaveButton.disabled = true;
+          if (elements.wfRevertButton) elements.wfRevertButton.disabled = true;
+
+          await refreshAll();
+          refreshWorkflowEditor();
+
+          setTimeout(() => {
+            if (elements.wfEditStatus) elements.wfEditStatus.textContent = "";
+          }, 2000);
+        } catch (error) {
+          if (elements.wfEditStatus) elements.wfEditStatus.textContent = `Save failed: ${error.message}`;
+        }
+      }
+
+      function revertWorkflowEdit() {
+        if (!wfEditState) return;
+        wfEditState.editedSteps = [...wfEditState.originalSteps];
+        wfEditState.hasChanges = false;
+        if (elements.wfEditStatus) elements.wfEditStatus.textContent = "Reverted.";
+        if (elements.wfSaveButton) elements.wfSaveButton.disabled = true;
+        if (elements.wfRevertButton) elements.wfRevertButton.disabled = true;
+        renderWorkflowStepsEditor();
+
+        setTimeout(() => {
+          if (elements.wfEditStatus) elements.wfEditStatus.textContent = "";
+        }, 2000);
+      }
+
+      function toggleWorkflowMermaid() {
+        if (!wfEditState) return;
+        const wf = state.workflows.find(w => w.id === wfEditState.workflowId);
+        if (!wf) return;
+
+        const mermaidCode = generateWorkflowMermaid(wf);
+        const codeEl = document.getElementById("wfMermaidCode");
+        const svgEl = document.getElementById("wfMermaidSvg");
+
+        if (codeEl && svgEl) {
+          if (codeEl.style.display === "none") {
+            codeEl.style.display = "block";
+            svgEl.style.display = "none";
+            codeEl.textContent = mermaidCode;
+          } else {
+            codeEl.style.display = "none";
+            svgEl.style.display = "block";
+            svgEl.innerHTML = `<pre class="mermaid">${mermaidCode}</pre>`;
+            if (window.mermaid) {
+              window.mermaid.init({ noteMargin: 10 }, svgEl);
+            }
+          }
+        }
+      }
+
+      function generateWorkflowMermaid(workflow) {
+        const steps = workflow.steps || [];
+        let md = `flowchart TD\n`;
+        md += `    LB["LeadBot"]:::lead\n`;
+
+        steps.forEach(step => {
+          const label = (step.name || step.id).replace(/"/g, '\\"');
+          md += `    ${step.id}["${label}"]\n`;
+        });
+
+        steps.forEach(step => {
+          if (step.depends_on && step.depends_on.length) {
+            step.depends_on.forEach(dep => {
+              md += `    ${dep} --> ${step.id}\n`;
+            });
+          } else if (step.owner_agent_id === "studio-lead" || step.step_type === "intake") {
+            md += `    LB --> ${step.id}\n`;
+          }
+        });
+
+        md += `\n    classDef lead fill:#255e69,stroke:#255e69,color:#fff\n`;
+        return md;
+      }
+
+      async function dryRunWorkflow() {
+        const workflowId = elements.wfSelector?.value;
+        if (!workflowId) return;
+
+        const input = elements.wfRunInput?.value?.trim();
+        try {
+          if (elements.wfRunStatus) elements.wfRunStatus.textContent = "Creating dry run...";
+          const preview = await fetchJson(`/studio/workflows/${workflowId}/dry-run`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input_summary: input || "Operator-triggered dry run." }),
+          });
+
+          renderDryRunPreview(preview);
+          if (elements.wfRunStatus) elements.wfRunStatus.textContent = "";
+        } catch (error) {
+          if (elements.wfRunStatus) elements.wfRunStatus.textContent = `Dry run failed: ${error.message}`;
+        }
+      }
+
+      async function dispatchWorkflowRun() {
+        const workflowId = elements.wfSelector?.value;
+        if (!workflowId) return;
+
+        const input = elements.wfRunInput?.value?.trim();
+        try {
+          if (elements.wfRunStatus) elements.wfRunStatus.textContent = "Creating run...";
+          const run = await fetchJson(`/studio/workflows/${workflowId}/runs`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input_summary: input || "Operator-triggered run." }),
+          });
+
+          if (elements.wfRunStatus) elements.wfRunStatus.textContent = "Dispatching to OpenClaw...";
+          try {
+            const dispatchResult = await fetchJson(`/studio/runs/${run.run_id}/dispatch`, {
+              method: "POST",
+            });
+            if (elements.wfRunStatus) elements.wfRunStatus.textContent = `Dispatched: ${dispatchResult.dispatch_id}`;
+          } catch (dispatchError) {
+            console.warn("OpenClaw dispatch failed, run still created:", dispatchError);
+            if (elements.wfRunStatus) elements.wfRunStatus.textContent = `Run created (dispatch pending): ${run.run_id}`;
+          }
+
+          await refreshAll();
+
+          setTimeout(() => {
+            if (elements.wfRunStatus) elements.wfRunStatus.textContent = "";
+          }, 4000);
+        } catch (error) {
+          if (elements.wfRunStatus) elements.wfRunStatus.textContent = `Dispatch failed: ${error.message}`;
+        }
+      }
+
+      function renderDryRunPreview(preview) {
+        if (!elements.wfRunPreview) return;
+
+        const nextSteps = (preview.next_steps || []).map(id => `<span class="pill">${escapeHtml(id)}</span>`).join("");
+        const blocked = (preview.blocked_steps || []).map(id => `<span class="pill">${escapeHtml(id)}</span>`).join("");
+        const approval = (preview.approval_steps || []).map(id => `<span class="pill status-awaiting_approval">${escapeHtml(id)}</span>`).join("");
+
+        elements.wfRunPreview.innerHTML = `
+          <h3>Dry Run Preview: ${escapeHtml(preview.run_id || "")}</h3>
+          <div class="pill-row" style="margin-top: 12px;">
+            <span class="pill">Status: ${escapeHtml(preview.status || "previewed")}</span>
+          </div>
+          <div class="meta" style="margin-top: 12px;">
+            <strong>Next steps:</strong> ${nextSteps || "none"}
+          </div>
+          <div class="meta" style="margin-top: 8px;">
+            <strong>Blocked:</strong> ${blocked || "none"}
+          </div>
+          <div class="meta" style="margin-top: 8px;">
+            <strong>Approval gates:</strong> ${approval || "none"}
+          </div>
+          <div class="section" style="margin-top: 14px;">
+            <h4>Step Previews</h4>
+            <div class="stack">
+              ${(preview.step_previews || []).map(step => `
+                <div class="card">
+                  <div class="step-title">${escapeHtml(step.name || step.step_id)}</div>
+                  <div class="pill-row" style="margin-top: 8px;">
+                    <span class="pill">${escapeHtml(step.owner_display_name || step.owner_agent_id)}</span>
+                    <span class="pill">${escapeHtml(step.status)}</span>
+                    ${step.approval_required ? '<span class="pill status-awaiting_approval">approval</span>' : ''}
+                  </div>
+                  <div class="meta" style="margin-top: 8px;">
+                    Deliverables: ${escapeHtml((step.deliverables || []).join(", ") || "none")}
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
       let draggedStepRow = null;
       elements.editorSections.addEventListener("dragstart", (event) => {
         if (state.editor.kind !== "workflow") {
@@ -4980,6 +5735,8 @@
       applyPageMode();
       initChatPage();
       initAgentsPage();
+      initWorkflowEditor();
+      startProposalPolling();
       refreshAll();
     </script>
   </body>

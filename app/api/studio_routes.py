@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import FileResponse
+from pathlib import Path
+import secrets
+import os
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -16,6 +20,7 @@ from app.studio.schemas import (
     WorkflowRunUpdateRequest,
 )
 from app.studio.runtime import (
+    OpenClawDispatchError,
     WorkflowRunNotFoundError,
     WorkflowRunService,
     WorkflowRunTransitionError,
@@ -287,6 +292,71 @@ def update_workflow_run_step(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+@router.post("/runs/{run_id}/dispatch")
+def dispatch_workflow_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Dispatch a workflow run to OpenClaw runtime."""
+    try:
+        return WorkflowRunService(db, studio_service).dispatch_to_openclaw(run_id)
+    except WorkflowRunNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown workflow run: {exc}") from exc
+    except WorkflowRunTransitionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except OpenClawDispatchError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 @router.get("/openclaw/export")
 def get_openclaw_export() -> dict:
     return studio_service.export_openclaw_bundle()
+
+
+# ===== Avatar Upload =====
+AVATAR_DIR = Path(__file__).parent.parent / "data" / "avatars"
+ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+MAX_FILE_SIZE = 2 * 1024 * 1024  # 2MB
+
+
+@router.post("/upload/avatar", include_in_schema=False)
+async def upload_avatar(file: UploadFile = File(...)) -> dict:
+    """Upload an avatar image for agents."""
+    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Validate file type
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: {ext}. Allowed: {', '.join(ALLOWED_EXTENSIONS)}",
+        )
+
+    # Read and validate file size
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="File too large. Max 2MB.")
+
+    # Generate unique filename
+    safe_name = secrets.token_hex(8)
+    filename = f"{safe_name}{ext}"
+    file_path = AVATAR_DIR / filename
+
+    # Save file
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    return {
+        "url": f"/studio/avatars/{filename}",
+        "filename": filename,
+        "size": len(content),
+    }
+
+
+@router.get("/avatars/{filename}", include_in_schema=False)
+async def serve_avatar(filename: str) -> FileResponse:
+    """Serve uploaded avatar images."""
+    file_path = AVATAR_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    return FileResponse(file_path)

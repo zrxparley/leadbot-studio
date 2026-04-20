@@ -25,6 +25,10 @@ class WorkflowRunTransitionError(ValueError):
     """Raised when a workflow run transition is invalid."""
 
 
+class OpenClawDispatchError(RuntimeError):
+    """Raised when dispatching to OpenClaw fails."""
+
+
 class WorkflowRunService:
     def __init__(
         self,
@@ -325,3 +329,164 @@ class WorkflowRunService:
                 metadata_json=json.dumps(metadata, ensure_ascii=False),
             )
         )
+
+    def dispatch_to_openclaw(self, run_id: str) -> dict[str, Any]:
+        """Dispatch a workflow run to OpenClaw runtime.
+
+        This creates the dispatch manifest and attempts to send it to the OpenClaw
+        daemon running locally (by default at ~/.openclaw).
+
+        The dispatch format includes:
+        - run_id: unique identifier for this run
+        - workflow_id: which workflow to execute
+        - steps: ordered list of steps with owner agents and dependencies
+        - input_summary: operator-provided context
+
+        Returns the dispatch result including the dispatch_id and status.
+        """
+        record = self._get_record(run_id)
+
+        if record.status not in {"previewed", "queued"}:
+            raise WorkflowRunTransitionError(
+                f"Cannot dispatch run in '{record.status}' status. Only 'previewed' or 'queued' runs can be dispatched."
+            )
+
+        # Build the dispatch manifest
+        manifest = self._build_dispatch_manifest(record)
+        dispatch_id = f"dispatch-{run_id}"
+
+        # Try to dispatch to OpenClaw daemon
+        try:
+            result = self._send_to_openclaw_daemon(dispatch_id, manifest)
+            # Update run status to running
+            record.status = "running"
+            self._append_event(
+                run_id=run_id,
+                workflow_id=record.workflow_id,
+                event_type="run_dispatched",
+                actor=record.operator,
+                target_kind="run",
+                target_id=run_id,
+                from_status="queued",
+                to_status="running",
+                note=f"Dispatched to OpenClaw: {dispatch_id}",
+                metadata={"dispatch_id": dispatch_id, "dispatch_result": result},
+            )
+            self.db.commit()
+            self.db.refresh(record)
+            return {
+                "dispatch_id": dispatch_id,
+                "status": "dispatched",
+                "run_id": run_id,
+                "manifest": manifest,
+                "result": result,
+            }
+        except Exception as exc:
+            # Log the failure but don't change the run status
+            self._append_event(
+                run_id=run_id,
+                workflow_id=record.workflow_id,
+                event_type="dispatch_failed",
+                actor=record.operator,
+                target_kind="run",
+                target_id=run_id,
+                from_status=record.status,
+                to_status=record.status,
+                note=f"Dispatch failed: {exc}",
+                metadata={"error": str(exc)},
+            )
+            self.db.commit()
+            raise OpenClawDispatchError(f"Failed to dispatch to OpenClaw: {exc}") from exc
+
+    def _build_dispatch_manifest(self, record: WorkflowRunRecord) -> dict[str, Any]:
+        """Build the dispatch manifest for a workflow run."""
+        manifest = self.manifest_service.load_manifest()
+        step_previews = json.loads(record.step_previews_json)
+
+        # Build agent map
+        agent_map = {agent.id: agent for agent in [*manifest.agents, manifest.lead_bot]}
+
+        steps = []
+        for step in step_previews:
+            owner = agent_map.get(step["owner_agent_id"])
+            steps.append({
+                "step_id": step["step_id"],
+                "name": step["name"],
+                "owner_agent_id": step["owner_agent_id"],
+                "owner_display_name": owner.identity.display_name if owner else step["owner_agent_id"],
+                "objective": step.get("objective", ""),
+                "depends_on": step.get("depends_on", []),
+                "approval_required": step.get("approval_required", False),
+                "deliverables": step.get("deliverables", []),
+            })
+
+        return {
+            "dispatch_id": f"dispatch-{record.run_id}",
+            "run_id": record.run_id,
+            "workflow_id": record.workflow_id,
+            "workflow_name": record.workflow_name,
+            "lead_agent_id": record.lead_agent_id,
+            "input_summary": record.input_summary,
+            "requested_outputs": json.loads(record.requested_outputs_json or "[]"),
+            "steps": steps,
+            "metadata": {
+                "studio_id": manifest.metadata.studio_id,
+                "studio_name": manifest.metadata.studio_name,
+            },
+        }
+
+    def _send_to_openclaw_daemon(self, dispatch_id: str, manifest: dict[str, Any]) -> dict[str, Any]:
+        """Send dispatch manifest to OpenClaw daemon.
+
+        The OpenClaw daemon is typically running locally at ~/.openclaw or at a
+        configured endpoint. This method attempts to communicate with it via
+        the OpenClaw CLI or API.
+
+        Returns the result from the daemon, or raises OpenClawDispatchError.
+        """
+        import os
+        import subprocess
+
+        openclaw_home = os.path.expanduser("~/.openclaw")
+        dispatch_file = os.path.join(openclaw_home, "dispatches", f"{dispatch_id}.json")
+
+        # Ensure dispatch directory exists
+        os.makedirs(os.path.dirname(dispatch_file), exist_ok=True)
+
+        # Write dispatch manifest to file
+        with open(dispatch_file, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, ensure_ascii=False, indent=2)
+
+        # Try to trigger OpenClaw daemon via CLI
+        try:
+            # Try openclaw CLI if available
+            result = subprocess.run(
+                ["openclaw", "dispatch", "--file", dispatch_file],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode == 0:
+                return {
+                    "status": "success",
+                    "stdout": result.stdout,
+                    "dispatch_file": dispatch_file,
+                }
+            else:
+                # CLI not available or failed, daemon might still pick up the file
+                return {
+                    "status": "queued",
+                    "message": "Dispatch manifest written. OpenClaw daemon will pick it up.",
+                    "dispatch_file": dispatch_file,
+                }
+        except FileNotFoundError:
+            # openclaw CLI not found, daemon will pick up the file
+            return {
+                "status": "queued",
+                "message": "OpenClaw CLI not found. Dispatch manifest written. Daemon will pick it up.",
+                "dispatch_file": dispatch_file,
+            }
+        except subprocess.TimeoutExpired:
+            raise OpenClawDispatchError("OpenClaw CLI timed out.")
+        except Exception as exc:
+            raise OpenClawDispatchError(f"Failed to communicate with OpenClaw: {exc}") from exc
