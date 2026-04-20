@@ -1025,12 +1025,73 @@
         opacity: 0.64;
       }
 
+      .vibe-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+      }
+
+      .vibe-chat-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        position: sticky;
+        top: 18px;
+      }
+
+      .vibe-compose {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .vibe-compose textarea {
+        width: 100%;
+        min-height: 110px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.76);
+        padding: 12px 14px;
+        color: var(--ink);
+        resize: vertical;
+        font: inherit;
+      }
+
+      .vibe-review-panel {
+        min-height: 600px;
+      }
+
+      .proposal-status-pending {
+        background: rgba(166, 107, 22, 0.14);
+        color: var(--warning);
+      }
+
+      .proposal-status-applied {
+        background: rgba(47, 119, 88, 0.16);
+        color: var(--success);
+      }
+
+      .proposal-status-rejected {
+        background: rgba(159, 55, 50, 0.16);
+        color: var(--danger);
+      }
+
+      .proposal-status-revision_requested {
+        background: rgba(37, 94, 105, 0.12);
+        color: var(--accent-cool);
+      }
+
       @media (max-width: 1240px) {
         .hero,
         .layout,
         .detail-grid,
-        .workflow-composer {
+        .workflow-composer,
+        .vibe-layout {
           grid-template-columns: 1fr;
+        }
+        .vibe-chat-panel {
+          position: static;
         }
       }
 
@@ -1061,6 +1122,7 @@
       <nav class="studio-nav">
         <a id="navConsole" class="button ghost small" href="/studio/console">Console</a>
         <a id="navChat" class="button ghost small" href="/studio/chat">Chat</a>
+        <a id="navAgents" class="button ghost small" href="/studio/agents-config">Agents</a>
         <a id="navWorkflows" class="button ghost small" href="/studio/workflows">Workflows</a>
         <a id="navProposals" class="button ghost small" href="/studio/proposals">Proposals</a>
       </nav>
@@ -1122,7 +1184,7 @@
           </div>
         </div>
 
-        <div class="panel" data-page-block="console chat workflows">
+        <div class="panel" data-page-block="console workflows">
           <div class="panel-header">
             <div>
               <h2>Configuration Studio</h2>
@@ -1245,6 +1307,152 @@
           </div>
           <div>
             <div id="proposalMeta" class="section"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== AGENTS CONFIG PAGE ===== -->
+      <section data-page-block="agents-config" style="margin-top: 18px;">
+        <div class="hero" style="margin-bottom: 18px;">
+          <div class="hero-panel">
+            <div class="eyebrow">Agent Configuration</div>
+            <h1>Agent Roster</h1>
+            <p class="hero-copy">全量管理工作室里的每一个 AgentBot。可直接创建新 Agent、编辑身份信息、配置技能和绑定，以及管理工具策略。</p>
+            <div class="hero-actions">
+              <button id="newAgentPageButton" type="button">New AgentBot</button>
+              <button class="secondary" id="refreshAgentsPageButton" type="button">Refresh</button>
+            </div>
+          </div>
+          <div class="hero-panel">
+            <div id="agentsPageSummary" class="summary-grid"></div>
+          </div>
+        </div>
+
+        <div class="layout">
+          <!-- LeadBot Card -->
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>LeadBot</h2>
+                <div class="panel-subtitle">Studio control plane — coordinates all AgentBots.</div>
+              </div>
+            </div>
+            <div id="agentsPageLeadCard"></div>
+          </div>
+
+          <!-- Specialists List -->
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Specialist Agents</h2>
+                <div class="panel-subtitle">Editable roster of domain specialists.</div>
+              </div>
+              <button class="secondary small" id="newAgentPageInlineButton" type="button">New Agent</button>
+            </div>
+            <div id="agentsPageList" class="stack"></div>
+          </div>
+
+          <!-- Quick Stats -->
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>OpenClaw Export</h2>
+                <div class="panel-subtitle">Current export preview for this agent roster.</div>
+              </div>
+              <button class="ghost small" id="copyAgentsExportButton" type="button">Copy JSON</button>
+            </div>
+            <div id="agentsExportMeta" style="margin-bottom: 12px;"></div>
+            <div class="control-card">
+              <pre id="agentsExportPayload"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== CHAT PAGE (Vibe Coding Dual-Panel) ===== -->
+      <section data-page-block="chat-standalone" style="margin-top: 18px;">
+        <div class="hero" style="margin-bottom: 18px;">
+          <div class="hero-panel">
+            <div class="eyebrow">LeadBot Chat</div>
+            <h1>Vibe Studio.</h1>
+            <p class="hero-copy">
+              用自然语言和 LeadBot 对话，每一轮都会实时生成 Change Proposal，在右侧可视化预览、审批或驳回变更——不需要手动编辑任何 JSON。
+            </p>
+            <div class="hero-actions">
+              <button id="chatResetButton" type="button" class="ghost">Reset Thread</button>
+            </div>
+          </div>
+          <div class="hero-panel">
+            <div id="chatProposalStats" class="summary-grid"></div>
+          </div>
+        </div>
+
+        <!-- Dual-panel layout: Chat left, Proposal Review right -->
+        <div class="vibe-layout">
+          <!-- Left: Conversation + Input -->
+          <div class="panel vibe-chat-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Chat with LeadBot</h2>
+                <div class="panel-subtitle">Multi-turn conversation. LeadBot keeps the full context.</div>
+              </div>
+              <span id="chatDraftModeChip" class="pill"></span>
+            </div>
+
+            <div id="chatThread" class="conversation-thread" style="flex: 1; min-height: 260px;"></div>
+
+            <div class="vibe-compose" style="margin-top: 14px;">
+              <textarea id="chatBriefInput" placeholder="例如：我想做一个内容增长工作室，需要 研究员、开发、QA、发布 四个专家 Agent。后续可以继续说：去掉 QA、加一个运营 Bot。"></textarea>
+              <div class="button-row" style="margin-top: 10px;">
+                <button id="chatSendButton" type="button">Send to LeadBot</button>
+                <button id="chatSendApplyButton" class="secondary" type="button">Send &amp; Apply</button>
+              </div>
+              <span id="chatStatus" class="statusline" style="margin-top: 8px;"></span>
+            </div>
+
+            <!-- Vibe Prompts suggestion board -->
+            <div class="control-card" style="margin-top: 14px;">
+              <div class="section-kicker">Vibe Prompts</div>
+              <div class="meta" style="margin-top: 6px;">LeadBot 根据当前 draft 推荐的下一步变更指令，点击直接填入。</div>
+              <div id="chatSuggestionGrid" class="prompt-grid" style="margin-top: 10px;"></div>
+            </div>
+          </div>
+
+          <!-- Right: Live Proposal Review Panel -->
+          <div class="panel vibe-review-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Proposal Review</h2>
+                <div class="panel-subtitle">每次对话自动生成 Change Proposal。在这里预览 diff、审批或驳回。</div>
+              </div>
+            </div>
+
+            <!-- Current proposal metadata -->
+            <div id="chatProposalHeader" class="section" style="margin-bottom: 14px;"></div>
+
+            <!-- Workflow visualization canvas -->
+            <div class="control-card" style="margin-bottom: 14px;">
+              <div class="split">
+                <div class="section-kicker">Workflow Preview</div>
+                <span id="chatWorkflowLabel" class="statusline"></span>
+              </div>
+              <div id="chatWorkflowCanvas" class="workflow-canvas" style="margin-top: 10px; min-height: 200px;"></div>
+            </div>
+
+            <!-- Manifest diff -->
+            <div id="chatDiffPanel" style="margin-bottom: 14px;"></div>
+
+            <!-- Approval actions -->
+            <div id="chatApprovalPanel" class="section"></div>
+
+            <!-- Proposal history list -->
+            <div class="section" style="margin-top: 14px;">
+              <div class="split">
+                <h3>Proposal History</h3>
+                <span class="statusline">All proposals from this session.</span>
+              </div>
+              <div id="chatProposalList" class="stack" style="margin-top: 12px;"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -1373,6 +1581,7 @@
       const PAGE_ROUTE_MAP = {
         "/studio/console": "console",
         "/studio/chat": "chat",
+        "/studio/agents-config": "agents-config",
         "/studio/workflows": "workflows",
         "/studio/proposals": "proposals",
       };
@@ -1388,7 +1597,15 @@
         });
         document.querySelectorAll("[data-page-block]").forEach((block) => {
           const allowed = (block.getAttribute("data-page-block") || "").split(/\s+/).filter(Boolean);
-          const visible = currentPage === "console" ? true : allowed.includes(currentPage);
+          let visible;
+          if (currentPage === "console") {
+            // console 页显示所有非独立页面 block
+            visible = allowed.includes("console");
+          } else if (currentPage === "chat") {
+            visible = allowed.includes("chat") || allowed.includes("chat-standalone");
+          } else {
+            visible = allowed.includes(currentPage);
+          }
           block.classList.toggle("page-hidden", !visible);
         });
       }
@@ -2647,6 +2864,9 @@
           renderOpenClawExport();
           renderLeadBotDraft();
           renderProposals();
+          renderAgentsPage();
+          renderChatProposalStats();
+          renderChatProposalList();
           await selectWorkflow(state.selectedWorkflowId, { loadRuns: true });
           elements.runCreateStatus.textContent = "Studio refreshed.";
         } catch (error) {
@@ -2655,6 +2875,535 @@
         } finally {
           document.body.classList.remove("loading");
         }
+      }
+
+      // ===== AGENTS CONFIG PAGE =====
+
+      function renderAgentsPage() {
+        const leadBot = getLeadBot();
+        const specialists = getSpecialists();
+
+        // Summary metrics
+        const agentsPageSummary = document.getElementById("agentsPageSummary");
+        if (agentsPageSummary) {
+          const metrics = [
+            { label: "LeadBot", value: leadBot?.identity?.display_name || "—", detail: leadBot?.role || "Not configured" },
+            { label: "Specialists", value: specialists.length, detail: `${specialists.length} agents configured` },
+            { label: "Total Skills", value: specialists.reduce((acc, a) => acc + (a.skills?.length || 0), 0), detail: "Across all specialist agents" },
+            { label: "Total Bindings", value: specialists.reduce((acc, a) => acc + (a.bindings?.length || 0), 0), detail: "Channel bindings configured" },
+          ];
+          agentsPageSummary.innerHTML = metrics.map((m) => `
+            <article class="metric">
+              <div class="metric-label">${escapeHtml(m.label)}</div>
+              <div class="metric-value">${escapeHtml(String(m.value))}</div>
+              <div class="metric-detail">${escapeHtml(m.detail)}</div>
+            </article>
+          `).join("");
+        }
+
+        // LeadBot card
+        const agentsPageLeadCard = document.getElementById("agentsPageLeadCard");
+        if (agentsPageLeadCard) {
+          if (leadBot) {
+            agentsPageLeadCard.innerHTML = `
+              <article class="lead-card" style="cursor: pointer;" data-edit-agent-page="${escapeHtml(leadBot.id)}">
+                <div class="split">
+                  <div>
+                    <div class="section-kicker">LeadBot Blueprint</div>
+                    <h3 style="margin-top: 8px;">${escapeHtml(leadBot.identity.display_name)}</h3>
+                    <div class="meta">${escapeHtml(leadBot.role)}</div>
+                  </div>
+                  <button class="secondary small" data-edit-agent-page="${escapeHtml(leadBot.id)}" type="button">Edit</button>
+                </div>
+                <div class="pill-row" style="margin-top: 12px;">
+                  <span class="pill">${escapeHtml(leadBot.coordination_style || "manager")}</span>
+                  <span class="pill">${escapeHtml((leadBot.manages_agents || []).length)} manages</span>
+                  <span class="pill">${escapeHtml((leadBot.workflow_ids || []).length)} workflows</span>
+                </div>
+                <div class="meta" style="margin-top: 12px;">${escapeHtml(leadBot.objective)}</div>
+                ${leadBot.identity.remark ? `<div class="meta" style="margin-top: 8px; font-style: italic;">${escapeHtml(leadBot.identity.remark)}</div>` : ""}
+              </article>
+            `;
+          } else {
+            agentsPageLeadCard.innerHTML = '<div class="empty">LeadBot not configured.</div>';
+          }
+        }
+
+        // Specialists list — richer cards
+        const agentsPageList = document.getElementById("agentsPageList");
+        if (agentsPageList) {
+          if (!specialists.length) {
+            agentsPageList.innerHTML = '<div class="empty">No specialist agents. Create one to get started.</div>';
+          } else {
+            agentsPageList.innerHTML = specialists.map((agent) => `
+              <article class="card">
+                <div class="split">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    ${agent.identity.avatar ? `<img src="${escapeHtml(agent.identity.avatar)}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" alt="" />` : `<div style="width:40px;height:40px;border-radius:50%;background:rgba(180,82,52,0.14);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">${escapeHtml(agent.identity.display_name[0] || "?")}</div>`}
+                    <div>
+                      <h3>${escapeHtml(agent.identity.display_name)}</h3>
+                      <div class="meta">${escapeHtml(agent.role)}</div>
+                    </div>
+                  </div>
+                  <button class="secondary small" data-edit-agent-page="${escapeHtml(agent.id)}" type="button">Edit</button>
+                </div>
+                <div class="pill-row" style="margin-top: 12px;">
+                  <span class="pill">${escapeHtml(agent.id)}</span>
+                  <span class="pill">${escapeHtml((agent.skills || []).length)} skills</span>
+                  <span class="pill">${escapeHtml((agent.bindings || []).length)} bindings</span>
+                  <span class="pill">${escapeHtml((agent.capabilities || []).length)} capabilities</span>
+                </div>
+                <div class="meta" style="margin-top: 10px;">${escapeHtml(agent.objective)}</div>
+                ${agent.identity.remark ? `<div class="meta" style="margin-top: 6px; font-style: italic; color: var(--muted);">${escapeHtml(agent.identity.remark)}</div>` : ""}
+                ${(agent.skills || []).length ? `
+                  <div class="pill-row" style="margin-top: 10px;">
+                    ${agent.skills.map((s) => `<span class="pill" style="background: rgba(37,94,105,0.10); color: var(--accent-cool);">⚙ ${escapeHtml(s.name)}</span>`).join("")}
+                  </div>` : ""}
+                <div class="button-row" style="margin-top: 14px;">
+                  <button class="secondary small" data-edit-agent-page="${escapeHtml(agent.id)}" type="button">Edit Agent</button>
+                  <button class="danger small" data-delete-agent-page="${escapeHtml(agent.id)}" type="button">Delete</button>
+                </div>
+              </article>
+            `).join("");
+          }
+
+          // bind edit buttons
+          agentsPageList.querySelectorAll("[data-edit-agent-page]").forEach((btn) => {
+            btn.addEventListener("click", () => openAgentEditor(btn.getAttribute("data-edit-agent-page")));
+          });
+          agentsPageList.querySelectorAll("[data-delete-agent-page]").forEach((btn) => {
+            btn.addEventListener("click", () => deleteAgentFromPage(btn.getAttribute("data-delete-agent-page")));
+          });
+        }
+
+        if (agentsPageLeadCard) {
+          agentsPageLeadCard.querySelectorAll("[data-edit-agent-page]").forEach((btn) => {
+            btn.addEventListener("click", () => openAgentEditor(btn.getAttribute("data-edit-agent-page")));
+          });
+        }
+
+        // Export panel
+        const agentsExportMeta = document.getElementById("agentsExportMeta");
+        const agentsExportPayload = document.getElementById("agentsExportPayload");
+        if (agentsExportMeta && state.exportBundle) {
+          const eb = state.exportBundle;
+          agentsExportMeta.innerHTML = `
+            <div class="pill-row">
+              <span class="pill">${escapeHtml((eb.agents?.list || []).length)} agents</span>
+              <span class="pill">${escapeHtml((eb.bindings || []).length)} bindings</span>
+              <span class="pill">A2A: ${escapeHtml((eb.coordination?.leadBot?.a2aAllow || []).join(", ") || "none")}</span>
+            </div>
+          `;
+          if (agentsExportPayload) {
+            agentsExportPayload.textContent = JSON.stringify(eb, null, 2);
+          }
+        }
+      }
+
+      async function deleteAgentFromPage(agentId) {
+        if (!agentId) return;
+        if (!confirm(`Delete agent "${agentId}"? This cannot be undone.`)) return;
+        try {
+          await fetchJson(`/studio/agents/${agentId}`, { method: "DELETE" });
+          await refreshAll();
+        } catch (error) {
+          alert(error.message || "Delete failed.");
+        }
+      }
+
+      // ===== CHAT PAGE (Vibe Coding Dual-Panel) =====
+
+      const chatState = {
+        draft: null,
+        thread: [],
+        selectedProposalId: null,
+      };
+
+      function renderChatProposalStats() {
+        const el = document.getElementById("chatProposalStats");
+        if (!el) return;
+        const proposals = state.proposals || [];
+        const pending = proposals.filter((p) => p.status === "pending").length;
+        const applied = proposals.filter((p) => p.status === "applied").length;
+        const rejected = proposals.filter((p) => p.status === "rejected" || p.status === "revision_requested").length;
+        const metrics = [
+          { label: "Total Proposals", value: proposals.length, detail: "All change proposals" },
+          { label: "Pending Review", value: pending, detail: "Awaiting approve/reject" },
+          { label: "Applied", value: applied, detail: "Changes synced to studio" },
+          { label: "Rejected / Revise", value: rejected, detail: "Rejected or revision requested" },
+        ];
+        el.innerHTML = metrics.map((m) => `
+          <article class="metric">
+            <div class="metric-label">${escapeHtml(m.label)}</div>
+            <div class="metric-value">${escapeHtml(String(m.value))}</div>
+            <div class="metric-detail">${escapeHtml(m.detail)}</div>
+          </article>
+        `).join("");
+      }
+
+      function renderChatProposalList() {
+        const el = document.getElementById("chatProposalList");
+        if (!el) return;
+        const proposals = state.proposals || [];
+        if (!proposals.length) {
+          el.innerHTML = '<div class="empty">No proposals yet. Chat with LeadBot to create one.</div>';
+          return;
+        }
+        el.innerHTML = proposals.map((p) => `
+          <article class="card ${p.proposal_id === chatState.selectedProposalId ? "active" : ""}">
+            <div class="split">
+              <div>
+                <strong>${escapeHtml(p.title || p.proposal_id)}</strong>
+                <div class="meta">${escapeHtml(p.brief.slice(0, 80))}${p.brief.length > 80 ? "…" : ""}</div>
+              </div>
+              <span class="pill proposal-status-${escapeHtml(p.status)}">${escapeHtml(p.status)}</span>
+            </div>
+            <div class="button-row" style="margin-top: 10px;">
+              <button class="ghost small" data-chat-select-proposal="${escapeHtml(p.proposal_id)}" type="button">View</button>
+              ${p.status === "pending" ? `
+                <button class="secondary small" data-chat-approve-proposal="${escapeHtml(p.proposal_id)}" type="button">Approve</button>
+                <button class="danger small" data-chat-reject-proposal="${escapeHtml(p.proposal_id)}" type="button">Reject</button>
+              ` : ""}
+            </div>
+          </article>
+        `).join("");
+
+        el.querySelectorAll("[data-chat-select-proposal]").forEach((btn) => {
+          btn.addEventListener("click", () => selectChatProposal(btn.getAttribute("data-chat-select-proposal")));
+        });
+        el.querySelectorAll("[data-chat-approve-proposal]").forEach((btn) => {
+          btn.addEventListener("click", () => actOnChatProposal(btn.getAttribute("data-chat-approve-proposal"), "approve"));
+        });
+        el.querySelectorAll("[data-chat-reject-proposal]").forEach((btn) => {
+          btn.addEventListener("click", () => actOnChatProposal(btn.getAttribute("data-chat-reject-proposal"), "reject"));
+        });
+      }
+
+      async function selectChatProposal(proposalId) {
+        chatState.selectedProposalId = proposalId;
+        const proposal = await fetchJson(`/studio/leadbot/proposals/${proposalId}`);
+        chatState.draft = proposal.draft;
+        renderChatProposalHeader(proposal);
+        renderChatDiff(proposal.draft?.manifest_diff || {});
+        await renderChatWorkflowCanvas(proposal.draft?.suggested_workflows?.[0] || null);
+        renderChatApprovalPanel(proposal);
+        renderChatProposalList();
+      }
+
+      function renderChatProposalHeader(proposal) {
+        const el = document.getElementById("chatProposalHeader");
+        if (!el) return;
+        if (!proposal) {
+          el.innerHTML = '<div class="empty">No proposal selected.</div>';
+          return;
+        }
+        el.innerHTML = `
+          <div class="split">
+            <div>
+              <h3>${escapeHtml(proposal.title || proposal.proposal_id)}</h3>
+              <div class="meta">${escapeHtml(proposal.brief)}</div>
+            </div>
+            <span class="pill proposal-status-${escapeHtml(proposal.status)}">${escapeHtml(proposal.status)}</span>
+          </div>
+          <div class="meta" style="margin-top: 10px;">${escapeHtml(proposal.draft?.leadbot_response || "")}</div>
+          <div class="pill-row" style="margin-top: 10px;">
+            <span class="pill">${escapeHtml(proposal.proposal_id)}</span>
+            <span class="pill">${escapeHtml(formatTimestamp(proposal.created_at))}</span>
+            <span class="pill">${escapeHtml(proposal.draft?.draft_source || "deterministic")} draft</span>
+          </div>
+          ${(proposal.draft?.rationale || []).length ? `
+            <div class="control-card" style="margin-top: 12px;">
+              <div class="section-kicker">Rationale</div>
+              <ul style="margin: 8px 0 0; padding-left: 18px; color: var(--muted);">
+                ${proposal.draft.rationale.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}
+              </ul>
+            </div>` : ""}
+        `;
+      }
+
+      async function renderChatWorkflowCanvas(workflow) {
+        const el = document.getElementById("chatWorkflowCanvas");
+        const labelEl = document.getElementById("chatWorkflowLabel");
+        if (!el) return;
+        if (!workflow) {
+          el.innerHTML = '<div class="empty">Workflow visualization will appear after LeadBot drafts one.</div>';
+          if (labelEl) labelEl.textContent = "";
+          return;
+        }
+        if (labelEl) labelEl.textContent = workflow.name;
+        const lines = ["flowchart LR"];
+        (workflow.steps || []).forEach((step) => {
+          lines.push(`${step.id}["${escapeMermaid(step.name)}"]`);
+          (step.depends_on || []).forEach((dep) => lines.push(`${dep} --> ${step.id}`));
+        });
+        el.innerHTML = `<pre class="mermaid">${lines.join("\n")}</pre>`;
+        try {
+          const mermaid = await ensureMermaid();
+          if (mermaid?.run) {
+            await mermaid.run({ nodes: [el.querySelector(".mermaid")] });
+          }
+        } catch (e) { console.error(e); }
+      }
+
+      function renderChatDiff(diff) {
+        const el = document.getElementById("chatDiffPanel");
+        if (!el) return;
+        if (!diff) { el.innerHTML = ""; return; }
+        const allChanges = [
+          ...(diff.created_agents || []),
+          ...(diff.updated_agents || []),
+          ...(diff.deleted_agents || []),
+          ...(diff.created_workflows || []),
+          ...(diff.updated_workflows || []),
+          ...(diff.deleted_workflows || []),
+        ];
+        if (!allChanges.length) { el.innerHTML = ""; return; }
+        el.innerHTML = `
+          <div class="control-card">
+            <div class="split">
+              <div class="section-kicker">Manifest Impact</div>
+              <div class="pill-row">
+                <span class="pill">${escapeHtml(String((diff.created_agents || []).length + (diff.created_workflows || []).length))} creates</span>
+                <span class="pill">${escapeHtml(String((diff.updated_agents || []).length + (diff.updated_workflows || []).length))} updates</span>
+                <span class="pill">${escapeHtml(String((diff.deleted_agents || []).length + (diff.deleted_workflows || []).length))} removals</span>
+              </div>
+            </div>
+            <div class="diff-list" style="margin-top: 12px;">
+              ${allChanges.map((item) => `
+                <article class="diff-item" data-action="${escapeHtml(item.action)}">
+                  <div class="split">
+                    <strong>${escapeHtml(item.label)}</strong>
+                    <span class="pill">${escapeHtml(item.action)}</span>
+                  </div>
+                  <div class="meta">${escapeHtml(item.summary)}</div>
+                </article>
+              `).join("")}
+            </div>
+          </div>
+          ${(diff.workflow_reviews || []).length ? `
+            <div class="control-card" style="margin-top: 12px;">
+              <div class="section-kicker">Workflow Step Review</div>
+              ${diff.workflow_reviews.map((review) => `
+                <div class="review-block" style="margin-top: 12px;">
+                  <div class="split">
+                    <strong>${escapeHtml(review.workflow_name)}</strong>
+                    <span class="pill">${escapeHtml(review.action)}</span>
+                  </div>
+                  <div class="review-columns" style="margin-top: 10px;">
+                    <div class="diff-card">
+                      <div class="section-kicker">Participants</div>
+                      <div class="diff-list" style="margin-top: 8px;">
+                        ${(review.participant_changes || []).map((pc) => `
+                          <article class="diff-item" data-action="${escapeHtml(pc.action)}">
+                            <div class="split"><strong>${escapeHtml(pc.agent_id)}</strong><span class="pill">${escapeHtml(pc.action)}</span></div>
+                            <div class="meta">${escapeHtml(pc.summary)}</div>
+                          </article>
+                        `).join("") || '<div class="empty">No participant changes.</div>'}
+                      </div>
+                    </div>
+                    <div class="diff-card">
+                      <div class="section-kicker">Steps</div>
+                      <div class="diff-list" style="margin-top: 8px;">
+                        ${(review.step_changes || []).map((sc) => `
+                          <article class="diff-item" data-action="${escapeHtml(sc.action)}">
+                            <div class="split"><strong>${escapeHtml(sc.step_name)}</strong><span class="pill">${escapeHtml(sc.action)}</span></div>
+                            <div class="meta">${escapeHtml(sc.summary)}</div>
+                          </article>
+                        `).join("") || '<div class="empty">No step changes.</div>'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `).join("")}
+            </div>
+          ` : ""}
+        `;
+      }
+
+      function renderChatApprovalPanel(proposal) {
+        const el = document.getElementById("chatApprovalPanel");
+        if (!el) return;
+        if (!proposal) { el.innerHTML = ""; return; }
+        const isPending = proposal.status === "pending";
+        el.innerHTML = `
+          <h3>Proposal Actions</h3>
+          <textarea id="chatApprovalNote" placeholder="Add a note (optional)…" style="width:100%;min-height:72px;border-radius:14px;border:1px solid var(--line);padding:10px 12px;margin-top:10px;background:rgba(255,255,255,0.76);font:inherit;color:var(--ink);"></textarea>
+          <div class="button-row" style="margin-top: 10px;">
+            ${isPending ? `
+              <button id="chatApproveButton" type="button">Approve &amp; Apply</button>
+              <button id="chatReviseButton" class="secondary" type="button">Request Revision</button>
+              <button id="chatRejectButton" class="danger" type="button">Reject</button>
+            ` : `<div class="meta">This proposal is <strong>${escapeHtml(proposal.status)}</strong> and no longer accepts changes.</div>`}
+          </div>
+          <div id="chatApprovalStatus" class="statusline" style="margin-top: 8px;"></div>
+        `;
+        if (isPending) {
+          document.getElementById("chatApproveButton")?.addEventListener("click", () => actOnChatProposal(proposal.proposal_id, "approve"));
+          document.getElementById("chatReviseButton")?.addEventListener("click", () => actOnChatProposal(proposal.proposal_id, "revise"));
+          document.getElementById("chatRejectButton")?.addEventListener("click", () => actOnChatProposal(proposal.proposal_id, "reject"));
+        }
+      }
+
+      function renderChatThread() {
+        const el = document.getElementById("chatThread");
+        if (!el) return;
+        if (!chatState.thread.length) {
+          el.innerHTML = '<div class="empty">Start with a plain-language request. LeadBot will respond and generate a reviewable proposal.</div>';
+          return;
+        }
+        el.innerHTML = chatState.thread.map((turn) => `
+          <article class="conversation-turn ${escapeHtml(turn.role || "operator")}">
+            <div class="conversation-role">${escapeHtml(turn.role === "leadbot" ? "LeadBot" : "You")}</div>
+            <div>${escapeHtml(turn.content || "")}</div>
+          </article>
+        `).join("");
+        el.scrollTop = el.scrollHeight;
+      }
+
+      function renderChatSuggestions() {
+        const el = document.getElementById("chatSuggestionGrid");
+        if (!el) return;
+        const prompts = chatState.draft?.suggested_next_prompts || [];
+        if (!prompts.length) {
+          el.innerHTML = '<span class="meta">Suggestions will appear after LeadBot drafts a response.</span>';
+          return;
+        }
+        el.innerHTML = prompts.map((p) => `
+          <button class="prompt-chip" data-chat-prompt="${escapeHtml(p)}" type="button">${escapeHtml(p)}</button>
+        `).join("");
+        el.querySelectorAll("[data-chat-prompt]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const input = document.getElementById("chatBriefInput");
+            if (input) { input.value = btn.getAttribute("data-chat-prompt") || ""; input.focus(); }
+          });
+        });
+      }
+
+      async function sendChatMessage(autoApply = false) {
+        const input = document.getElementById("chatBriefInput");
+        const statusEl = document.getElementById("chatStatus");
+        const brief = input?.value?.trim();
+        if (!brief) { if (statusEl) statusEl.textContent = "Please describe the change you want."; return; }
+        if (statusEl) statusEl.textContent = autoApply ? "LeadBot is drafting and applying…" : "LeadBot is drafting…";
+
+        // Optimistically add user turn to thread
+        chatState.thread.push({ role: "operator", content: brief });
+        renderChatThread();
+
+        try {
+          const proposal = await fetchJson("/studio/leadbot/proposals", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              brief,
+              operator: "chat-operator",
+              prefer_model: true,
+              title: chatState.draft ? "LeadBot refinement" : "LeadBot draft",
+              conversation: chatState.draft?.conversation || [],
+              current_draft: chatState.draft || null,
+            }),
+          });
+
+          chatState.selectedProposalId = proposal.proposal_id;
+          chatState.draft = proposal.draft;
+
+          // Add LeadBot response turn
+          if (proposal.draft?.leadbot_response) {
+            chatState.thread.push({ role: "leadbot", content: proposal.draft.leadbot_response });
+          }
+          if (input) input.value = "";
+
+          // Update draft mode chip
+          const modeChip = document.getElementById("chatDraftModeChip");
+          if (modeChip) {
+            const src = proposal.draft?.draft_source || "deterministic";
+            modeChip.textContent = src === "model" ? "Model" : src === "fallback" ? "Fallback" : "Deterministic";
+          }
+
+          if (autoApply) {
+            await actOnChatProposal(proposal.proposal_id, "approve", "Auto-applied from Chat.");
+          } else {
+            await refreshAll();
+            renderChatThread();
+            renderChatSuggestions();
+            await selectChatProposal(proposal.proposal_id);
+            if (statusEl) statusEl.textContent = `Proposal ${proposal.proposal_id} ready for review.`;
+          }
+        } catch (error) {
+          console.error(error);
+          if (statusEl) statusEl.textContent = error.message || "LeadBot request failed.";
+        }
+      }
+
+      async function actOnChatProposal(proposalId, action, note = null) {
+        const noteEl = document.getElementById("chatApprovalNote");
+        const resolvedNote = note || noteEl?.value?.trim() || null;
+        const statusEl = document.getElementById("chatApprovalStatus");
+        if (statusEl) statusEl.textContent = `Submitting ${action}…`;
+        try {
+          const result = await fetchJson(`/studio/leadbot/proposals/${proposalId}/actions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action, note: resolvedNote, replace_existing: true, sync_removed_entities: true }),
+          });
+          if (action === "revise" && resolvedNote) {
+            const input = document.getElementById("chatBriefInput");
+            if (input) input.value = resolvedNote;
+          }
+          await refreshAll();
+          renderChatProposalList();
+          renderChatProposalStats();
+          if (statusEl) statusEl.textContent = `${action} completed.`;
+          if (result.proposal) {
+            renderChatProposalHeader(result.proposal);
+            renderChatApprovalPanel(result.proposal);
+          }
+          const chatStatus = document.getElementById("chatStatus");
+          if (chatStatus) chatStatus.textContent = `Proposal ${action === "approve" ? "approved and applied" : action === "reject" ? "rejected" : "revision requested"}.`;
+        } catch (error) {
+          console.error(error);
+          if (statusEl) statusEl.textContent = error.message || "Action failed.";
+        }
+      }
+
+      function initChatPage() {
+        document.getElementById("chatSendButton")?.addEventListener("click", () => sendChatMessage(false));
+        document.getElementById("chatSendApplyButton")?.addEventListener("click", () => sendChatMessage(true));
+        document.getElementById("chatResetButton")?.addEventListener("click", () => {
+          chatState.draft = null;
+          chatState.thread = [];
+          chatState.selectedProposalId = null;
+          renderChatThread();
+          renderChatSuggestions();
+          const chatProposalHeader = document.getElementById("chatProposalHeader");
+          if (chatProposalHeader) chatProposalHeader.innerHTML = '<div class="empty">No proposal selected.</div>';
+          const chatDiffPanel = document.getElementById("chatDiffPanel");
+          if (chatDiffPanel) chatDiffPanel.innerHTML = "";
+          const chatApprovalPanel = document.getElementById("chatApprovalPanel");
+          if (chatApprovalPanel) chatApprovalPanel.innerHTML = "";
+          const chatWorkflowCanvas = document.getElementById("chatWorkflowCanvas");
+          if (chatWorkflowCanvas) chatWorkflowCanvas.innerHTML = '<div class="empty">Workflow visualization will appear after LeadBot drafts one.</div>';
+          const chatStatus = document.getElementById("chatStatus");
+          if (chatStatus) chatStatus.textContent = "Thread cleared.";
+        });
+
+        const chatBriefInput = document.getElementById("chatBriefInput");
+        chatBriefInput?.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            sendChatMessage(false);
+          }
+        });
+      }
+
+      function initAgentsPage() {
+        document.getElementById("newAgentPageButton")?.addEventListener("click", () => openAgentEditor(null));
+        document.getElementById("newAgentPageInlineButton")?.addEventListener("click", () => openAgentEditor(null));
+        document.getElementById("refreshAgentsPageButton")?.addEventListener("click", () => refreshAll());
+        document.getElementById("copyAgentsExportButton")?.addEventListener("click", () => {
+          const payload = document.getElementById("agentsExportPayload")?.textContent;
+          if (payload) navigator.clipboard.writeText(payload).catch(() => {});
+        });
       }
 
       function buildLeadBotRequestPayload() {
@@ -4229,6 +4978,8 @@
       elements.editorDeleteButton.addEventListener("click", deleteEditorEntity);
 
       applyPageMode();
+      initChatPage();
+      initAgentsPage();
       refreshAll();
     </script>
   </body>

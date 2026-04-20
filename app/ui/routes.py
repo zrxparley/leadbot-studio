@@ -22,6 +22,11 @@ def studio_chat() -> str:
     return CONSOLE_HTML_PATH.read_text(encoding="utf-8")
 
 
+@router.get("/studio/agents-config", response_class=HTMLResponse, include_in_schema=False)
+def studio_agents_config() -> str:
+    return CONSOLE_HTML_PATH.read_text(encoding="utf-8")
+
+
 @router.get("/studio/workflows", response_class=HTMLResponse, include_in_schema=False)
 def studio_workflows() -> str:
     return CONSOLE_HTML_PATH.read_text(encoding="utf-8")

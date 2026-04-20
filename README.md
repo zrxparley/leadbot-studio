@@ -81,6 +81,8 @@ LeadBot 是控制平面，不是网关替代品。
 - OpenClaw 配置导出器
 - 自动生成默认 studio manifest
 - 一个可直接 fork 的默认工作室模板
+- **独立 Agents 配置页** (`/studio/agents-config`)：Agent 富卡片列表、头像预览、技能标签、直接 Edit / Delete
+- **Chat Vibe Coding 双栏工作台** (`/studio/chat`)：左栏多轮对话 + 右栏实时 Proposal Review 可视化（Mermaid workflow + manifest diff + 审批操作一体化）
 
 ## 主要接口
 
